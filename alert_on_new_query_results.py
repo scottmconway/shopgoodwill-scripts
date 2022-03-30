@@ -9,7 +9,8 @@ from typing import Dict, List
 
 import requests
 
-QUERY_URL = "https://buyerapi.shopgoodwill.com/api/Search/ItemListing"
+import shopgoodwill
+
 RELEVANT_LISTING_KEYS = [
     "buyNowPrice",
     "discountedBuyNowPrice",
@@ -19,62 +20,81 @@ RELEVANT_LISTING_KEYS = [
     "title",
 ]
 
+USELESS_ATTRS = [
+    "price",
+    "sort",
+    "categoryName",
+    "sellerName",
+    "layout",
+    "searchOption",
+]
 
-def get_all_query_results(query_json: Dict) -> List[Dict]:
+SAVED_SEARCH_TO_QUERY_PARAMS = {
+    "categoryLevelNum": "categoryLevelNo",
+    "isWedding": "isWeddingCategory",
+    "categoryLevelNum": "categoryLevel",
+    "selectedCategoryIds": "catIds",
+}
+
+
+def saved_search_to_query(saved_search: Dict) -> Dict:
     """
-    :param query_json: A valid Shopgoodwill query JSON
-    :type query_json: Dict
-    :return: A list of query results across all valid result pages
-    :rtype: List[Dict]
+    Contorts a saved search Dict to a valid query Dict
     """
 
-    query_json["page"] = 1
-    query_json["pageSize"] = 40
-    total_listings = list()
-    while True:
-        query_res = requests.post(QUERY_URL, json=query_json)
-        query_res.raise_for_status()
-        page_listings = query_res.json()["searchResults"]["items"]
+    for attr in USELESS_ATTRS:
+        del saved_search[attr]
 
-        # break if this page is empty
-        if not page_listings:
-            return total_listings
+    for old_name, new_name in SAVED_SEARCH_TO_QUERY_PARAMS.items():
+        saved_search[new_name] = saved_search[old_name]
+        del saved_search[old_name]
 
-        else:
-            query_json["page"] += 1
-            total_listings += page_listings
+    # TODO how the hell does "categoryId work?"
+    cat_ids = saved_search["catIds"].split(",")
+    max_cat_id = max([int(i) for i in cat_ids])
+    saved_search["selectedCategoryIds"] = max_cat_id
 
-            # break if we've seen all that we expect to see
-            if len(total_listings) == query_res.json()["searchResults"]["itemCount"]:
-                return total_listings
+    for k, v in saved_search.items():
+        saved_search[k] = str(v).lower()  # Thanks SGW
 
-        sleep(5)  # naive rate-limiting
+    # TODO we might need to worry about the query's `categoryId` field
+    # it appears to be the middle ID in this instance
+    #
+    # catIds = "12,112,392"
+    # categoryId = 112
+
+    # This seems to work fine without it, though
+
+    return saved_search
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-q",
-        "--query_name",
-        type=str,
-        help="The name of the query to execute. "
-        "This must be present under the config's `saved_queries` section",
+        "-q", "--query-name", type=str, help="The name of the query to execute"
     )
     parser.add_argument(
         "-l",
         "--list-queries",
         action="store_true",
-        help="If set, list all queries that can be executed, and exit",
+        help="If set, list all queries that can be executed "
+        "for the current data source and exit",
+    )
+    parser.add_argument(
+        "-d",
+        "--data-source",
+        choices=["local", "saved_searches"],
+        default="local",
+        help="Data source for this query. "
+        "If `saved_searches` is selected, "
+        "Shopgoodwill credentials are required in the configuration file",
     )
     args = parser.parse_args()
 
     with open("config.json", "r") as f:
         config = json.load(f)
 
-    if args.list_queries:
-        print("Saved queries: %s" % (", ".join(sorted(config["saved_queries"]))))
-        return
-
+    # logging setup
     logger = logging.getLogger("shopgoodwill_alert_on_new_query_results")
     logging_conf = config.get("logging", dict())
     logger.setLevel(logging_conf.get("log_level", logging.INFO))
@@ -82,6 +102,45 @@ def main():
         from gotify_handler import GotifyHandler
 
         logger.addHandler(GotifyHandler(**logging_conf["gotify"]))
+
+    # data source setup
+    if args.data_source == "saved_searches":
+        # TODO connect to shopgoodwill
+        auth_info = config.get("auth_info", None)
+        if auth_info is None:
+            raise Exception(
+                "SGW authenication required for `saved_searches` data source"
+            )
+
+        sgw = shopgoodwill.Shopgoodwill(auth_info)
+
+        # SGW doesn't let you name your queries,
+        # so I guess we'll rely on their IDs
+        saved_searches = sgw.get_saved_searches()
+
+        # TODO this is in some way faulty
+        # we'll need to contruct our own queries from the info shown here
+        if not saved_searches:
+            saved_queries = dict()
+
+        else:
+            saved_queries = {
+                str(i["savedSearchId"]): saved_search_to_query(i)
+                for i in saved_searches
+            }
+
+        list_query_string = "Saved queries: %s" % (
+            ", ".join(sorted(saved_queries.keys()))
+        )
+
+    else:
+        sgw = shopgoodwill.Shopgoodwill()
+        saved_queries = sorted(config["saved_queries"])
+        list_query_string = "Saved queries: %s" % (", ".join(saved_queries))
+
+    if args.list_queries:
+        print(list_query_string)
+        return
 
     # init seen listings
     seen_listings_filename = config.get("seen_listings_filename", "seen_listings.json")
@@ -91,11 +150,11 @@ def main():
     else:
         seen_listings = list()
 
-    if not args.query_name or args.query_name not in config["saved_queries"]:
+    if not args.query_name or args.query_name not in saved_queries:
         logger.error(f'Invalid query_name "{args.query_name}" - exiting')
         exit(1)
 
-    total_listings = get_all_query_results(config["saved_queries"][args.query_name])
+    total_listings = sgw.get_query_results(saved_queries[args.query_name])
 
     alert_queue = list()
 
