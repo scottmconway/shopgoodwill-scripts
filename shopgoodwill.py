@@ -1,6 +1,10 @@
+import base64
+import urllib.parse
 from typing import Dict, List, Optional
 
 import requests
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 from requests.exceptions import HTTPError
 from requests.models import PreparedRequest, Response
 
@@ -27,6 +31,11 @@ def shop_goodwill_err_hook(res: Response, *args, **kwargs):
 class Shopgoodwill:
     LOGIN_PAGE_URL = "https://shopgoodwill.com/signin"
     API_ROOT = "https://buyerapi.shopgoodwill.com/api"
+    ENCRYPTION_INFO = {
+        "key": b"6696D2E6F042FEC4D6E3F32AD541143B",
+        "iv": b"0000000000000000",  # You love to see it
+        "block_size": 16,
+    }
 
     def __init__(self, auth_info: Optional[Dict] = None):
         self.shopgoodwill_session = requests.Session()
@@ -47,9 +56,46 @@ class Shopgoodwill:
                 ] = f"Bearer {access_token}"
 
             else:
-                self.login(auth_info["username"], auth_info["password"])
+                if (
+                    "encrypted_username" in auth_info
+                    and "encrypted_password" in auth_info
+                ):
+                    self.login(
+                        auth_info["encrypted_username"], auth_info["encrypted_password"]
+                    )
+
+                elif "username" in auth_info and "password" in auth_info:
+                    self.login(
+                        self._encrypt_login_value(auth_info["username"]),
+                        self._encrypt_login_value(auth_info["password"]),
+                    )
+
+                else:
+                    raise Exception("Invalid auth_info provided!")
 
             self.logged_in = True
+
+    def _encrypt_login_value(self, plaintext: str) -> str:
+        """
+        Replicates SGW's "encryption" on username/password fields.
+        It really isn't neccessary since you can
+        rip the encrypted values from your browser,
+        but it'll make initial config just a tad easier
+
+        :param plaintext: The string value to be "encrypted"
+        :type plaintext: str
+        :return: An "encrypted" string that can be used for authentication
+        :rtype: str
+        """
+
+        padded = pad(plaintext.encode(), Shopgoodwill.ENCRYPTION_INFO["block_size"])
+        cipher = AES.new(
+            Shopgoodwill.ENCRYPTION_INFO["key"],
+            AES.MODE_CBC,
+            Shopgoodwill.ENCRYPTION_INFO["iv"],
+        )
+        ciphertext = cipher.encrypt(padded)
+        return urllib.parse.quote(base64.b64encode(ciphertext))
 
     def access_token_is_valid(self, access_token: str) -> bool:
         """
@@ -171,14 +217,23 @@ class Shopgoodwill:
             favorites = list()
 
         for favorite in favorites:
-            parsed_favorites[int(favorite['itemId'])] = favorite
+            parsed_favorites[int(favorite["itemId"])] = favorite
 
         return parsed_favorites
 
     @requires_auth
-    def place_bid(self, item_id: int, bid_amount: float, seller_id: int, quantity: int = 1):
-        bid_json = {'itemId': item_id, 'bidAmount': "%.2f" % bid_amount, 'sellerId': seller_id, 'quantity': quantity}
-        bid_res = self.shopgoodwill_session.post(f"{Shopgoodwill.API_ROOT}/ItemBid/PlaceBid", json=bid_json).json()
+    def place_bid(
+        self, item_id: int, bid_amount: float, seller_id: int, quantity: int = 1
+    ):
+        bid_json = {
+            "itemId": item_id,
+            "bidAmount": "%.2f" % bid_amount,
+            "sellerId": seller_id,
+            "quantity": quantity,
+        }
+        bid_res = self.shopgoodwill_session.post(
+            f"{Shopgoodwill.API_ROOT}/ItemBid/PlaceBid", json=bid_json
+        ).json()
 
         """
         Possible bid responses:
@@ -204,7 +259,9 @@ class Shopgoodwill:
         :rtype: Dict
         """
 
-        return self.shopgoodwill_session.get(f"{Shopgoodwill.API_ROOT}/itemDetail/GetItemDetailModelByItemId/{item_id}").json()
+        return self.shopgoodwill_session.get(
+            f"{Shopgoodwill.API_ROOT}/itemDetail/GetItemDetailModelByItemId/{item_id}"
+        ).json()
 
     def get_item_bid_info(self, item_id: int) -> Dict:
         """
@@ -224,8 +281,9 @@ class Shopgoodwill:
         :rtype: Dict
         """
 
-        return self.shopgoodwill_session.get(f"{Shopgoodwill.API_ROOT}/itemBid/ShowBidModal", params={"itemId": item_id}).json()
-
+        return self.shopgoodwill_session.get(
+            f"{Shopgoodwill.API_ROOT}/itemBid/ShowBidModal", params={"itemId": item_id}
+        ).json()
 
     def get_query_results(
         self, query_json: Dict, page_size: Optional[int] = 40

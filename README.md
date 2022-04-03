@@ -11,9 +11,25 @@ See `config.json.example` for an example configuration file.
 ### `auth_info`
 This section is only needed if you want to use functionality requiring a ShopGoodwill account.
 
-At this time, I've yet to reverse the "encryption" performed by ShopGoodwill for the username/password parameters. I'm not going to describe their process at this time (perhaps it's to come in a future blog post), but note that the `username` and `password` fields in the `auth_info` section of the config need to be "encrypted" by ShopGoodwill, and not the plaintext values.
+There are three different ways you can choose to log into ShopGoodwill:
+* Access Token
+* Plaintext username/password
+* "Encrypted" username/password
 
-To find the "encrypted" variants of these parameters, fire up your browser of choice, open the network monitor, and log in to the service. The `POST` request to `https://buyerapi.shopgoodwill.com/api/SignIn/Login` will contain the values that you're looking for.
+Note that plaintext or "encrypted" username/password are the recommended options, and the "encryption" seriously does not matter.
+
+#### Access Token
+With a valid ShopGoodwill session, authenticated requests will contain an `Authorization` header. Simply provide the token (coming after the text `Bearer `) here.
+
+#### Plaintext Username/Password
+Simply put your plaintext username/password in the `username` and `password` fields. That's it.
+
+#### "Encrypted" Username/Password
+If I'd like a sprinkle of obfuscation in your config, you can store the username and password fields in the way that they're directly communicated to ShopGoodwill.
+
+If you're interested in why I have quotes around "encryption", check out [my blog post on it](https://conway.scot/shopgoodwill-reversing/).
+
+Anyway, to find the "encrypted" variants of these parameters, fire up your browser of choice, open the network monitor, and log in to the service. The `POST` request to `https://buyerapi.shopgoodwill.com/api/SignIn/Login` will contain the values that you're looking for. Those values should be stored in the `encrypted_username` and `encrypted_password` fields.
 
 ### `logging`
 `log_level` - sets the log level to subscribe to

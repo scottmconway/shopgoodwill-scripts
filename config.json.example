@@ -7,8 +7,11 @@
         }
     },
     "auth_info": {
-        "password": "",
+        "access_token": "",
+        "encrypted_username": ""
+        "encrypted_password": "",
         "username": ""
+        "password": "",
     },
     "bid_sniper": {
         "refresh_seconds": 300,
