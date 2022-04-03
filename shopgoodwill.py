@@ -136,22 +136,96 @@ class Shopgoodwill:
         return res.json()["data"]
 
     @requires_auth
-    def get_favorites(self, favorite_type: str = "open") -> List[Dict]:
-        # TODO nb - this is _not_ paginated
+    def get_favorites(self, favorite_type: str = "open") -> Dict[int, Dict]:
+        """
+        Returns the logged in user's favorites, and all of their (visible)
+        attributes.
+
+        Note that this parses the list of dicts into a properly parsed dict,
+        keyed on itemId, for my sanity.
+
+        :param favorite_type: One of "open", "close", or "all"
+            only listings that fit the type are returned
+        :type favorite_type: str
+        :return: A dict of item_id: item_info_dict items
+        :rtype:
+        """
+
+        # nb - this is _not_ paginated
         # it seems that it just returns _all_ favorites
         # (which is great for us)
         #
         # TODO should this default to all?
         # we just don't care about closed listings
 
-        # for docs - favorite_type: [open, close, all]
-
         res = self.shopgoodwill_session.post(
             Shopgoodwill.API_ROOT + "/Favorite/GetAllFavoriteItemsByType",
             params={"Type": favorite_type},
             json={},
         )
-        return res.json()["data"]
+        favorites = res.json()["data"]
+        parsed_favorites = dict()
+
+        # It'd be nice if their formatting was consistent
+        if favorites is None:
+            favorites = list()
+
+        for favorite in favorites:
+            parsed_favorites[int(favorite['itemId'])] = favorite
+
+        return parsed_favorites
+
+    @requires_auth
+    def place_bid(self, item_id: int, bid_amount: float, seller_id: int, quantity: int = 1):
+        bid_json = {'itemId': item_id, 'bidAmount': "%.2f" % bid_amount, 'sellerId': seller_id, 'quantity': quantity}
+        bid_res = self.shopgoodwill_session.post(f"{Shopgoodwill.API_ROOT}/ItemBid/PlaceBid", json=bid_json).json()
+
+        """
+        Possible bid responses:
+
+        Immediately outbid:
+            <h3><b>You have already been outbid. </b></h3><p>This occurred because someone specfied a higher maximum bid than you. </p><p>Did you know?  You can choose to not receive bid notifications by email. Simply visit your <a href='https://shopgoodwill.com//shopgoodwill/personal-information'> Buyer/Contact Information page.</a></p>
+
+        High Bidder (w/ templated date/time):
+            <h3><b>Bid Received! </b></h3><p>You are <strong>currently</strong> the high bidder for this auction. </p><p>This item ends at %-m/%-d/%Y -%-H:%M:%S %p PT, check back then for results. </p><p>Did you know? You can choose to not receive bid notifications by email. Simply visit your <a href='https://shopgoodwill.com//shopgoodwill/personal-information'> Buyer/Contact Information page.</a></p>
+        """
+
+        # TODO should we return the outcome?
+        return
+
+    def get_item_info(self, item_id: int) -> Dict:
+        """
+        Simple function to get all info for a given item.
+        Returns the contents shown on /item/$ITEM_ID pages on the SGW site.
+
+        :param item_id: A valid item ID
+        :type item_id: int
+        :return: A dict containing all item attributes from SGW
+        :rtype: Dict
+        """
+
+        return self.shopgoodwill_session.get(f"{Shopgoodwill.API_ROOT}/itemDetail/GetItemDetailModelByItemId/{item_id}").json()
+
+    def get_item_bid_info(self, item_id: int) -> Dict:
+        """
+        Simple function to get all info
+        provided for an item by the "quick bid" action.
+
+        Note that this function is significantly quicker than get_item_info,
+        but it doesn't contain as much information.
+
+        (137ms to 257ms with a sample size of 1 comparison)
+
+        It does contain the seller ID, which is needed for placing a bid.
+
+        :param item_id: A valid item ID
+        :type item_id: int
+        :return: A dict containing some item attributes from SGW
+        :rtype: Dict
+        """
+
+        return self.shopgoodwill_session.get(f"{Shopgoodwill.API_ROOT}/itemBid/ShowBidModal", params={"itemId": item_id}).json()
+
 
     def get_query_results(
         self, query_json: Dict, page_size: Optional[int] = 40

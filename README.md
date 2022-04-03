@@ -1,10 +1,9 @@
-# Shopgoodwill Scripts
-A collection of scripts for programmatically interacting with [Shopgoodwill](https://shopgoodwill.com).
+# ShopGoodwill Scripts
+A collection of scripts for programmatically interacting with [ShopGoodwill](https://shopgoodwill.com).
 
 ## Requirements
 * python3
-* requests
-* gotify-handler (optional - required only if you'd like to log to gotify)
+* see requirements.txt
 
 ## Configuration Setup
 See `config.json.example` for an example configuration file.
@@ -27,6 +26,33 @@ This is the path of the file that will have "seen" listings written to, so we ca
 This section contains `{query_friendly_name: query}` JSON objects, for use by `alert_on_new_query_results.py`. `query` should be a query JSON, as described below.
 
 ## Scripts
+### `bid_sniper.py`
+
+This script can run as a daemon to "snipe" bids on watched auctions, and issue time-based alerts at user-configured times until auction ending.
+
+The configured state (watched auctions, max bid prices) is handled entirely in ShopGoodwill itself! With a valid ShopGoodwill account, you can "favorite" items by clicking on the heart icon in any query page. Once a favorite is set, it should appear on [this page](https://shopgoodwill.com/shopgoodwill/favorites), under the tab that matches the item's current auction state (open or closed). Once an item appears under the "open" tab, time-based alerts will be picked up the next time the daemon queries your favorites.
+
+If you wish to snipe a bid, you'll have to store the max bid price in ShopGoodwill _somehow_. Rather conveniently, you can set a 500 character note for each listing in your favorites. Thus, if you'd like to set a max bid, save a JSON-formatted note for the listing, with the key `max_bid` mapping to an int or float value. Other keys can be included - the program just reads from `max_bid`. Notes that aren't JSONs or don't contain `max_bid` will be ignored when being evaluated for bidding.
+
+eg.
+```json
+{
+    "max_bid": 10.5
+}
+```
+
+The favorites cache is forcibly updated right before any bids are placed, so what you see on ShopGoodwill's site should truly reflect the actions that this script will take.
+
+If a listing has been removed from your favorites, it _will not_ be bid on. However, it's possible that you can get an erroneous time-based alerts. If you'd like to change this, simply set `favorites_max_cache_seconds` to `0` in your config file.
+
+
+#### Arguments
+|Name|Type|Description|
+|-|-|-|
+||`--config`|`str`|Path to config file - defaults to `./config.json`|
+|`-n`|`--dry-run`|`bool`|If set, do not perform any actions that modify state on ShopGoodwill (eg. placing bids)|
+
+
 ### `alert_on_new_query_results.py`
 
 This script executes an "advanced query" as specified by the user, and logs and results that haven't been seen before. `itemID` is used to track listings. "Seen listings" are tracked globally across all queries, so you should only be alerted once about a given item. However, I've seen ShopGoodwill sometimes re-upload auctions with no changes, except for the `itemID`. Those listings will be considered "new".
@@ -34,7 +60,7 @@ This script executes an "advanced query" as specified by the user, and logs and 
 #### Arguments
 |Name|Type|Description|
 |-|-|-|
-|`-q`|`query-name`|`str`|The name of the query to execute. This must be present in the data source's list of queries|
+|`-q`|`--query-name`|`str`|The name of the query to execute. This must be present in the data source's list of queries|
 |`-l`|`--list-queries`|`bool`|If set, list all queries that can be executed by this data source and exit|
 |`-d`|`--data-source`|`str`|Either `local` or `saved_searches`. The former reads query JSONs from the config file's `saved_queries` section. The latter reads from a ShopGoodwill account's "Saved Searches"|
 

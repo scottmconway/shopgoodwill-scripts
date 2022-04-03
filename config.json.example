@@ -10,6 +10,19 @@
         "password": "",
         "username": ""
     },
+    "bid_sniper": {
+        "refresh_seconds": 300,
+        "bid_snipe_time_delta": "30 seconds",
+        "favorites_max_cache_seconds": 60,
+        "alert_time_deltas": [
+            "1 hour",
+            "30 minutes",
+            "10 minutes",
+            "5 minutes",
+            "1 minute",
+            "30 seconds"
+        ]
+    },
     "seen_listings_filename": "seen_listings.json",
     "saved_queries": {
         "tuscon_pick_up_only": {
