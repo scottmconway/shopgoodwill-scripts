@@ -47,19 +47,28 @@ If a listing has been removed from your favorites, it _will not_ be bid on. Howe
 
 
 #### Arguments
-|Name|Type|Description|
-|-|-|-|
+|Short Name|Long Name|Type|Description|
+|-|-|-|-|
 ||`--config`|`str`|Path to config file - defaults to `./config.json`|
 |`-n`|`--dry-run`|`bool`|If set, do not perform any actions that modify state on ShopGoodwill (eg. placing bids)|
 
+### Configuration
+The following values are under `bid_sniper` in the example config file.
+
+|Name|Type|Description|
+|-|-|-|
+|`refresh_seconds`|`int`|The number of seconds apart to schedule execution of the program's main loop|
+|`bid_snipe_time_delta`|`str`|A valid time delta string representing the time before an auction ending, when a bid will be placed|
+|`favorites_max_cache_seconds`|`int`|If the favorites cache is older than this number of seconds, it will be refreshed. This value is ignored when placing a bid. At that time, it's forcibly refreshed|
+|`alert_time_deltas`|`List[str]`|A list of time delta strings for which to alert the user of an auction's ending time. eg. "1 hour" will cause a notification 1 hour before the end of every watched auction|
 
 ### `alert_on_new_query_results.py`
 
 This script executes an "advanced query" as specified by the user, and logs and results that haven't been seen before. `itemID` is used to track listings. "Seen listings" are tracked globally across all queries, so you should only be alerted once about a given item. However, I've seen ShopGoodwill sometimes re-upload auctions with no changes, except for the `itemID`. Those listings will be considered "new".
 
 #### Arguments
-|Name|Type|Description|
-|-|-|-|
+|Short Name|Long Name|Type|Description|
+|-|-|-|-|
 |`-q`|`--query-name`|`str`|The name of the query to execute. This must be present in the data source's list of queries|
 |`-l`|`--list-queries`|`bool`|If set, list all queries that can be executed by this data source and exit|
 |`-d`|`--data-source`|`str`|Either `local` or `saved_searches`. The former reads query JSONs from the config file's `saved_queries` section. The latter reads from a ShopGoodwill account's "Saved Searches"|
