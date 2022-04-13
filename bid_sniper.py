@@ -48,8 +48,7 @@ class BidSniper:
             if time_delta != datetime.timedelta(0):
                 self.alert_time_deltas.append(time_delta)
             else:
-                self.logger.warning("Invalid time delta string "
-                                    f"'{time_delta_str}'")
+                self.logger.warning("Invalid time delta string " f"'{time_delta_str}'")
 
         self.favorites_cache = {
             "last_updated": datetime.datetime.min,
@@ -115,7 +114,8 @@ class BidSniper:
         if item_id in self.favorites_cache["favorites"]:
             favorite = self.favorites_cache[item_id]
             self.logger.info(
-                f"time alert - {favorite['title']} ending at {end_time_str}")
+                f"time alert - {favorite['title']} ending at {end_time_str}"
+            )
 
         return schedule.CancelJob
 
@@ -162,9 +162,7 @@ class BidSniper:
         try:
             max_bid = float(max_bid)
         except ValueError:
-            self.logger.error(
-                f"ValueError casting max_bid value '{max_bid}' as float"
-            )
+            self.logger.error(f"ValueError casting max_bid value '{max_bid}' as float")
             return schedule.CancelJob
 
         # we need the sellerId before placing a bid, which is _only_
@@ -173,8 +171,7 @@ class BidSniper:
             item_info = self.shopgoodwill_client.get_item_bid_info(item_id)
         except HTTPError as he:
             self.logger.error(
-                "HTTPError getting info for item "
-                f"'{item_info['title']}' - {he}"
+                "HTTPError getting info for item " f"'{item_info['title']}' - {he}"
             )
             return schedule.CancelJob
 
@@ -189,8 +186,7 @@ class BidSniper:
 
         # finally place a bid
         self.logger.info(
-            f"{self.dry_run_msg}placing bid on "
-            f"'{item_info['title']}' for {max_bid}"
+            f"{self.dry_run_msg}placing bid on " f"'{item_info['title']}' for {max_bid}"
         )
         if not self.dry_run:
             # TODO in the future, address how SGW uses quantity
@@ -201,8 +197,7 @@ class BidSniper:
                 )
             except HTTPError as he:
                 self.logger.error(
-                    "HTTPError placing bid on "
-                    f"'{item_info['title']}' - {he}"
+                    "HTTPError placing bid on " f"'{item_info['title']}' - {he}"
                 )
                 return schedule.CancelJob
 
@@ -257,8 +252,7 @@ class BidSniper:
                 - datetime.datetime.min
             )
             if time_delta == datetime.timedelta(0):
-                self.logger.warning("Invalid time delta string "
-                                    f"'{time_delta_str}'")
+                self.logger.warning("Invalid time delta string " f"'{time_delta_str}'")
             else:
 
                 delta_to_event = end_time - time_delta - now
@@ -307,8 +301,9 @@ def main():
         schedule.run_pending()
         sleep(1)
 
+
 if __name__ == "__main__":
     # TODO this doesn't seem to call main()...
-    #with daemon.DaemonContext():
+    # with daemon.DaemonContext():
     #    main()
     main()
