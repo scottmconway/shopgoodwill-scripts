@@ -86,6 +86,7 @@ This script executes an "advanced query" as specified by the user, and logs and 
 |Short Name|Long Name|Type|Description|
 |-|-|-|-|
 |`-q`|`--query-name`|`str`|The name of the query to execute. This must be present in the data source's list of queries|
+|N/A|`--all`|`bool`|If set, execute all queries under the configured data source|
 |`-l`|`--list-queries`|`bool`|If set, list all queries that can be executed by this data source and exit|
 |`-d`|`--data-source`|`str`|Either `local` or `saved_searches`. The former reads query JSONs from the config file's `saved_queries` section. The latter reads from a ShopGoodwill account's "Saved Searches"|
 

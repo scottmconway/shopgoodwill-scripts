@@ -74,6 +74,11 @@ def main():
         "-q", "--query-name", type=str, help="The name of the query to execute"
     )
     parser.add_argument(
+        "--all",
+        action="store_true",
+        help="If set, execute all queries for the configured data source",
+    )
+    parser.add_argument(
         "-l",
         "--list-queries",
         action="store_true",
@@ -135,8 +140,8 @@ def main():
 
     else:
         sgw = shopgoodwill.Shopgoodwill()
-        saved_queries = sorted(config["saved_queries"])
-        list_query_string = "Saved queries: %s" % (", ".join(saved_queries))
+        saved_queries = config["saved_queries"]
+        list_query_string = "Saved queries: %s" % (", ".join(saved_queries.keys()))
 
     if args.list_queries:
         print(list_query_string)
@@ -150,44 +155,50 @@ def main():
     else:
         seen_listings = list()
 
-    if not args.query_name or args.query_name not in saved_queries:
+    if not args.all and args.query_name not in saved_queries:
         logger.error(f'Invalid query_name "{args.query_name}" - exiting')
         exit(1)
 
-    total_listings = sgw.get_query_results(saved_queries[args.query_name])
+    if args.all:
+        queries_to_run = saved_queries
+    else:
+        queries_to_run = {args.query_name: saved_queries[args.query_name]}
 
-    alert_queue = list()
+    for query_name, query_json in queries_to_run.items():
+        total_listings = sgw.get_query_results(query_json)
 
-    for listing in total_listings:
-        # skip seen listings
-        item_id = listing["itemId"]
-        if item_id in seen_listings:
-            continue
+        alert_queue = list()
 
-        relevant_attrs = dict()
-        for key in RELEVANT_LISTING_KEYS:
-            relevant_attrs[key] = str(listing[key])
-            relevant_attrs["url"] = f"https://shopgoodwill.com/item/{item_id}"
+        for listing in total_listings:
+            # skip seen listings
+            item_id = listing["itemId"]
+            if item_id in seen_listings:
+                continue
 
-        seen_listings.append(item_id)
-        alert_queue.append(relevant_attrs)
+            relevant_attrs = dict()
+            for key in RELEVANT_LISTING_KEYS:
+                relevant_attrs[key] = str(listing[key])
+                relevant_attrs["url"] = f"https://shopgoodwill.com/item/{item_id}"
 
-    if alert_queue:
-        formatted_msg_lines = [
-            f"{len(alert_queue)} new results for shopgoodwill query",
-            "",
-        ]
-        for alert in alert_queue:
-            alert_lines = [
-                alert["title"] + ":",
-                alert["minimumBid"],
-                alert["endTime"],
-                alert["url"],
+            seen_listings.append(item_id)
+            alert_queue.append(relevant_attrs)
+
+        if alert_queue:
+            formatted_msg_lines = [
+                f'{len(alert_queue)} new results for shopgoodwill query "{query_name}"',
                 "",
             ]
-            formatted_msg_lines.extend(alert_lines)
+            for alert in alert_queue:
+                alert_lines = [
+                    alert["title"] + ":",
+                    alert["minimumBid"],
+                    alert["endTime"],
+                    alert["url"],
+                    "",
+                ]
+                formatted_msg_lines.extend(alert_lines)
 
-        logger.info("\n".join(formatted_msg_lines))
+            logger.info("\n".join(formatted_msg_lines))
 
     # save new results of seen listings
     with open(seen_listings_filename, "w") as f:
