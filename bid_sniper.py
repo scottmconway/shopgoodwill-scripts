@@ -48,7 +48,7 @@ class BidSniper:
             if time_delta != datetime.timedelta(0):
                 self.alert_time_deltas.append(time_delta)
             else:
-                self.logger.warning("Invalid time delta string " f"'{time_delta_str}'")
+                self.logger.warning("Invalid time delta string '{time_delta_str}'")
 
         self.favorites_cache = {
             "last_updated": datetime.datetime.min,
@@ -171,7 +171,7 @@ class BidSniper:
             item_info = self.shopgoodwill_client.get_item_bid_info(item_id)
         except HTTPError as he:
             self.logger.error(
-                "HTTPError getting info for item " f"'{item_info['title']}' - {he}"
+                f"HTTPError getting info for item '{item_info['title']}' - {he}"
             )
             return schedule.CancelJob
 
@@ -179,14 +179,14 @@ class BidSniper:
         if max_bid < item_info["currentPrice"]:
             # TODO tell the user what happened
             self.logger.warning(
-                "Bid amount {max_bid} for item '{item['title']}' "
+                f"Bid amount {max_bid} for item '{item['title']}' "
                 f"below current price {item_info['currentPrice']}"
             )
             return schedule.CancelJob
 
         # finally place a bid
         self.logger.info(
-            f"{self.dry_run_msg}placing bid on " f"'{item_info['title']}' for {max_bid}"
+            f"{self.dry_run_msg}placing bid on '{item_info['title']}' for {max_bid}"
         )
         if not self.dry_run:
             # TODO in the future, address how SGW uses quantity
@@ -197,7 +197,7 @@ class BidSniper:
                 )
             except HTTPError as he:
                 self.logger.error(
-                    "HTTPError placing bid on " f"'{item_info['title']}' - {he}"
+                    f"HTTPError placing bid on '{item_info['title']}' - {he}"
                 )
                 return schedule.CancelJob
 
@@ -252,7 +252,7 @@ class BidSniper:
                 - datetime.datetime.min
             )
             if time_delta == datetime.timedelta(0):
-                self.logger.warning("Invalid time delta string " f"'{time_delta_str}'")
+                self.logger.warning(f"Invalid time delta string '{time_delta_str}'")
             else:
 
                 delta_to_event = end_time - time_delta - now
