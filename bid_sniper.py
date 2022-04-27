@@ -111,8 +111,8 @@ class BidSniper:
         )
 
         # Check if we still want to alert on this item
-        if item_id in self.favorites_cache["favorites"]:
-            favorite = self.favorites_cache[item_id]
+        favorite = self.favorites_cache["favorites"].get(item_id, None)
+        if favorite:
             self.logger.info(
                 f"time alert - {favorite['title']} ending at {end_time_str}"
             )
