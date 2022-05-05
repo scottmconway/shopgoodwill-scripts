@@ -25,6 +25,17 @@ def shop_goodwill_err_hook(res: Response, *args, **kwargs):
     #
     # sometimes this field is absent, too.
 
+    # TODO sometimes we'll get 403s,
+    # seemingly indicating that our session prematurely ended
+    #
+    # Next steps - re-login if we get a 403,
+    # attempt X (5) times, then raise the _real_ 40X
+    #
+    # TODO but how can we _really_ tell if a 403 is a session outage?
+    # Maybe try getting another predefined page that requires login
+    # eg. profile info
+
+
     return res
 
 

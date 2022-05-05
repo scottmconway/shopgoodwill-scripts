@@ -18,6 +18,28 @@ There are three different ways you can choose to log into ShopGoodwill:
 
 Note that plaintext or "encrypted" username/password are the recommended options, and the "encryption" seriously does not matter.
 
+`bid_sniper` (as discussed below) can utilize multiple accounts if desired, for read-only operations (reading favorites, sending time alerts on expiring auctions) and write operations (placing bids). If this setup is desired, `auth_info` should contain two dictionaries with the same format as `auth_info`, with the names `command_account`, and `bid_account`.
+
+Additionally, the `auth_type` attribute must be set to `command_bid`.
+
+eg.
+```json
+{
+    "auth_info": {
+        "auth_type": "command_bid",
+        "command_account": {
+            "username": "",
+            "password": ""
+        },
+        "bid_account": {
+            "username": "",
+            "password": ""
+        }
+}
+```
+
+In the future, if additional scripts utilize login features, I'll have to standardize this.
+
 #### Access Token
 With a valid ShopGoodwill session, authenticated requests will contain an `Authorization` header. Simply provide the token (coming after the text `Bearer `) here.
 

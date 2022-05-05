@@ -6,15 +6,45 @@ import json
 import logging
 from json.decoder import JSONDecodeError
 from time import sleep
-from typing import Dict
+from typing import Dict, Optional
 from zoneinfo import ZoneInfo
 
-import daemon
 import parsedatetime
 import schedule
 from requests.exceptions import HTTPError
 
 import shopgoodwill
+
+
+def get_timedelta_to_time(
+    end_time: datetime.datetime, truncate_microseconds: Optional[bool] = True
+) -> datetime.timedelta:
+    """
+    Given a datetime object (hopefully in the future),
+    return a timedelta which is timezone aware or unaware,
+    depending on the input datetime
+
+    :param end_time: A datetime object (timzone aware or unaware)
+        from which to get a timedelta from now until then
+    :type end_time: datetime.datetime
+    :param truncate_microseconds: If set, truncate microseconds from datetimes
+    :type truncate_microseconds: Optional[bool]
+    :return: A timedelta from end_time to now
+    :rtype: datetime.timedelta
+    """
+
+    if truncate_microseconds:
+        end_time = end_time.replace(microsecond=0)
+        now = datetime.datetime.now().replace(microsecond=0)
+
+    else:
+        now = datetime.datetime.now()
+
+    if end_time.tzinfo is None:
+        return end_time - now
+
+    else:
+        return end_time - now.astimezone()
 
 
 class BidSniper:
@@ -35,7 +65,20 @@ class BidSniper:
 
         # TODO since this is a daemon,
         # we'll actually have to bother refreshing the token!
-        self.shopgoodwill_client = shopgoodwill.Shopgoodwill(config["auth_info"])
+
+        # check if the user wants to use separate accounts for commands/bids
+        # (purely for ban evasion)
+        if config["auth_info"].get("auth_type", "universal") == "command_bid":
+            self.shopgoodwill_client = shopgoodwill.Shopgoodwill(
+                config["auth_info"]["command_account"]
+            )
+            self.bid_shopgoodwill_client = shopgoodwill.Shopgoodwill(
+                config["auth_info"]["bid_account"]
+            )
+
+        else:
+            self.shopgoodwill_client = shopgoodwill.Shopgoodwill(config["auth_info"])
+            self.bid_shopgoodwill_client = self.shopgoodwill_client
 
         # custom time alerting setup
         self.alert_time_deltas = list()
@@ -95,14 +138,16 @@ class BidSniper:
                 #
                 # for now we'll do nothing
 
-    def time_alert(self, item_id: int, end_time_str: str) -> schedule.CancelJob:
+    def time_alert(
+        self, item_id: int, end_time: datetime.datetime
+    ) -> schedule.CancelJob:
         """
         Simply logs an alert to remind the user that an auction is ending
 
         :param item_id: A valid ShopGoodwill item ID
         :type item_id: int
-        :param end_time_str: The end time of the auction in ISO-8601
-        :type end_time_str: str
+        :param end_time: The end time of the auction
+        :type end_time: datetime.datetime
         :return: the schedule.CancelJob class, so this only runs once
         :rtype: schedule.CancelJob
         """
@@ -113,8 +158,12 @@ class BidSniper:
         # Check if we still want to alert on this item
         favorite = self.favorites_cache["favorites"].get(item_id, None)
         if favorite:
+            delta_until_end = get_timedelta_to_time(end_time)
+            delta_until_end = end_time.replace(
+                microsecond=0
+            ) - datetime.datetime.now().astimezone().replace(microsecond=0)
             self.logger.warning(
-                f"time alert - {favorite['title']} ending at {end_time_str}"
+                f"Time alert - {favorite['title']} ending in {delta_until_end}"
             )
 
         return schedule.CancelJob
@@ -165,8 +214,8 @@ class BidSniper:
             self.logger.error(f"ValueError casting max_bid value '{max_bid}' as float")
             return schedule.CancelJob
 
-        # we need the sellerId before placing a bid, which is _only_
-        # available on the item page
+        # we need the sellerId before placing a bid,
+        # which is _only_ available on the item page
         try:
             item_info = self.shopgoodwill_client.get_item_bid_info(item_id)
         except HTTPError as he:
@@ -177,22 +226,24 @@ class BidSniper:
 
         # Don't try bidding if we can't win
         if max_bid < item_info["currentPrice"]:
-            # TODO tell the user what happened
+            # tell the user what happened
             self.logger.warning(
-                f"Bid amount {max_bid} for item '{item['title']}' "
+                f"Bid amount {max_bid} for item '{item_info['title']}' "
                 f"below current price {item_info['currentPrice']}"
             )
             return schedule.CancelJob
 
         # finally place a bid
         self.logger.warning(
-            f"{self.dry_run_msg}placing bid on '{item_info['title']}' for {max_bid}"
+            f"{self.dry_run_msg}Placing bid on '{item_info['title']}' for {max_bid}"
         )
         if not self.dry_run:
             # TODO in the future, address how SGW uses quantity
             # I don't think they use it in auctions
+            #
+            # Note that the account used is bidding_shopgoodwill_client
             try:
-                self.shopgoodwill_client.place_bid(
+                self.bid_shopgoodwill_client.place_bid(
                     item_id, max_bid, item_info["sellerId"], quantity=1
                 )
             except HTTPError as he:
@@ -224,22 +275,20 @@ class BidSniper:
             )
 
             # schedule reminders for whenever the user configured
-            now = datetime.datetime.utcnow().replace(tzinfo=ZoneInfo("Etc/UTC"))
             for alert_time_delta in self.alert_time_deltas:
-                delta_to_event = end_time - alert_time_delta - now
+                delta_to_event = get_timedelta_to_time(end_time - alert_time_delta)
 
                 # skip events in the past
                 if delta_to_event.days < 0:
                     continue
 
                 self.logger.debug(
-                    "scheduling time alert for item "
-                    f"{item_id} in {delta_to_event}"
+                    "Scheduling time alert for item " f"{item_id} in {delta_to_event}"
                 )
                 schedule.every(delta_to_event.seconds).seconds.do(
                     self.time_alert,
                     item_id,
-                    end_time.isoformat(),
+                    end_time,
                 )
 
             # schedule a tentative max_bid for this item
@@ -247,22 +296,20 @@ class BidSniper:
             time_delta_str = self.config["bid_sniper"].get(
                 "bid_snipe_time_delta", "30 seconds"
             )
-            time_delta = (
+            bid_time_delta = (
                 cal.parseDT(time_delta_str, sourceTime=datetime.datetime.min)[0]
                 - datetime.datetime.min
             )
-            if time_delta == datetime.timedelta(0):
+            if bid_time_delta == datetime.timedelta(0):
                 self.logger.warning(f"Invalid time delta string '{time_delta_str}'")
             else:
 
-                delta_to_event = end_time - time_delta - now
+                delta_to_event = get_timedelta_to_time(end_time - bid_time_delta)
                 self.logger.debug(
-                    "scheduling bid for item "
-                    f"{item_id} in {delta_to_event.seconds} seconds"
+                    "Scheduling bid for item " f"{item_id} in {delta_to_event}"
                 )
                 schedule.every(delta_to_event.seconds).seconds.do(
-                    self.place_bid,
-                    item_id
+                    self.place_bid, item_id
                 )
 
             # mark this item ID as "scheduled"
