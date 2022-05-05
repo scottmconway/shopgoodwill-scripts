@@ -113,7 +113,7 @@ class BidSniper:
         # Check if we still want to alert on this item
         favorite = self.favorites_cache["favorites"].get(item_id, None)
         if favorite:
-            self.logger.info(
+            self.logger.warning(
                 f"time alert - {favorite['title']} ending at {end_time_str}"
             )
 
@@ -185,7 +185,7 @@ class BidSniper:
             return schedule.CancelJob
 
         # finally place a bid
-        self.logger.info(
+        self.logger.warning(
             f"{self.dry_run_msg}placing bid on '{item_info['title']}' for {max_bid}"
         )
         if not self.dry_run:
@@ -234,7 +234,7 @@ class BidSniper:
 
                 self.logger.debug(
                     "scheduling time alert for item "
-                    f"{item_id} in {delta_to_event.seconds} seconds"
+                    f"{item_id} in {delta_to_event}"
                 )
                 schedule.every(delta_to_event.seconds).seconds.do(
                     self.time_alert,
@@ -262,8 +262,7 @@ class BidSniper:
                 )
                 schedule.every(delta_to_event.seconds).seconds.do(
                     self.place_bid,
-                    item_id,
-                    self.dry_run,
+                    item_id
                 )
 
             # mark this item ID as "scheduled"
