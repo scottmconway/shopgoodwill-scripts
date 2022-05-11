@@ -16,7 +16,14 @@ There are three different ways you can choose to log into ShopGoodwill:
 * Plaintext username/password
 * "Encrypted" username/password
 
-Note that plaintext or "encrypted" username/password are the recommended options, and the "encryption" seriously does not matter.
+Only one type of authentication method should be specified, but in case multiple are provided, the following order of precedence is used:
+* Access Token
+* "Encrypted" username/password
+* Plaintext username/password
+
+If an invalid access token is provided, the application will fallback to username/password authentication methods.
+
+Note that plaintext or "encrypted" username/password are the recommended options, and the "encryption" seriously does not matter (more on this later).
 
 `bid_sniper` (as discussed below) can utilize multiple accounts if desired, for read-only operations (reading favorites, sending time alerts on expiring auctions) and write operations (placing bids). If this setup is desired, `auth_info` should contain two dictionaries with the same format as `auth_info`, with the names `command_account`, and `bid_account`.
 
@@ -47,7 +54,7 @@ With a valid ShopGoodwill session, authenticated requests will contain an `Autho
 Simply put your plaintext username/password in the `username` and `password` fields. That's it.
 
 #### "Encrypted" Username/Password
-If I'd like a sprinkle of obfuscation in your config, you can store the username and password fields in the way that they're directly communicated to ShopGoodwill.
+If you'd like a sprinkle of obfuscation in your config, you can store the username and password fields in the way that they're directly communicated to ShopGoodwill.
 
 If you're interested in why I have quotes around "encryption", check out [my blog post on it](https://conway.scot/shopgoodwill-reversing/).
 
