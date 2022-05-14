@@ -88,7 +88,7 @@ eg.
 
 The favorites cache is forcibly updated right before any bids are placed, so what you see on ShopGoodwill's site should truly reflect the actions that this script will take.
 
-If a listing has been removed from your favorites, it _will not_ be bid on. However, it's possible that you can get an erroneous time-based alerts. If you'd like to change this, simply set `favorites_max_cache_seconds` to `0` in your config file.
+If a listing has been removed from your favorites, it _will not_ be bid on. However, it's possible that you can get erroneous time-based alerts. If you'd like to change this, simply set `favorites_max_cache_seconds` to `0` in your config file.
 
 
 #### Arguments
@@ -110,6 +110,12 @@ The following values are under `bid_sniper` in the example config file.
 ### `alert_on_new_query_results.py`
 
 This script executes an "advanced query" as specified by the user, and logs and results that haven't been seen before. `itemID` is used to track listings. "Seen listings" are tracked globally across all queries, so you should only be alerted once about a given item. However, I've seen ShopGoodwill sometimes re-upload auctions with no changes, except for the `itemID`. Those listings will be considered "new".
+
+Note - this query has _advanced_ capabilities over that of ShopGoodwill. At this time, it will further filter results as according to the `searchText`'s use of quotation marks.
+
+eg. the `searchText` string `"foo bar"` will _not_ match with a SGW listing of the title "foo baz bar", whereas it _would_ match in the web application. Note that the search operation is the same, but results are filtered to further enforce the will of the user.
+
+Further improvements to come!
 
 #### Arguments
 |Short Name|Long Name|Type|Description|
