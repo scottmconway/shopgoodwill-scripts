@@ -4,10 +4,8 @@ import argparse
 import json
 import logging
 import os
-from time import sleep
+import re
 from typing import Dict, List
-
-import requests
 
 import shopgoodwill
 
@@ -68,6 +66,50 @@ def saved_search_to_query(saved_search: Dict) -> Dict:
     return saved_search
 
 
+def filter_listings(query_json: Dict, listings: List[Dict]) -> List[Dict]:
+    """
+    Given a list of query results, filter the query results
+    according to attributes in the query JSON.
+
+    At this time, that means to enforce that quotes in the query text
+    appear in the resulting listings' titles
+
+    :param query_json: A query json for use with sgw.get_query_listings
+    :type query_json: Dict
+    :param listings: a list of listings, as returned by sgw.get_query_listings
+    :type listings: List[Dict]
+    :return: listings, filtered by rules defined in the query JSON
+    :param listings: A list of listings, as returned by sgw.get_query_listings
+    :type listings: List[Dict]
+        filtered by the aforementioned rules
+    :rtype: List[Dict]
+    """
+
+    final_listings = list()
+
+    # enforce quotes in query strings
+    # case-insensitive at the time being
+
+    # TODO note that quotes can start or end with ' or " (or a mix therein!)
+    # There's probably a better way to do this, but I am not privy to it
+    quote_regex = re.compile(r"[\'\"].+?[\'\"]")
+    search_string = query_json["searchText"].lower()
+    quotes = quote_regex.findall(search_string)
+
+    for listing in listings:
+        failure = False
+
+        for quote in quotes:
+            if quote[1:-1] not in listing["title"].lower():
+                failure = True
+                break
+
+        if not failure:
+            final_listings.append(listing)
+
+    return final_listings
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -110,7 +152,6 @@ def main():
 
     # data source setup
     if args.data_source == "saved_searches":
-        # TODO connect to shopgoodwill
         auth_info = config.get("auth_info", None)
         if auth_info is None:
             raise Exception(
@@ -123,8 +164,6 @@ def main():
         # so I guess we'll rely on their IDs
         saved_searches = sgw.get_saved_searches()
 
-        # TODO this is in some way faulty
-        # we'll need to contruct our own queries from the info shown here
         if not saved_searches:
             saved_queries = dict()
 
@@ -165,7 +204,8 @@ def main():
         queries_to_run = {args.query_name: saved_queries[args.query_name]}
 
     for query_name, query_json in queries_to_run.items():
-        total_listings = sgw.get_query_results(query_json)
+        query_res = sgw.get_query_results(query_json)
+        total_listings = filter_listings(query_json, query_res)
 
         alert_queue = list()
 

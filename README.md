@@ -111,6 +111,12 @@ The following values are under `bid_sniper` in the example config file.
 
 This script executes an "advanced query" as specified by the user, and logs and results that haven't been seen before. `itemID` is used to track listings. "Seen listings" are tracked globally across all queries, so you should only be alerted once about a given item. However, I've seen ShopGoodwill sometimes re-upload auctions with no changes, except for the `itemID`. Those listings will be considered "new".
 
+Note - this query has _advanced_ capabilities over that of ShopGoodwill. At this time, it will further filter results as according to the `searchText`'s use of quotation marks.
+
+eg. the `searchText` string `"foo bar"` will _not_ match with a SGW listing of the title "foo baz bar", whereas it _would_ match in the web application. Note that the search operation is the same, but results are filtered to further enforce the will of the user.
+
+Further improvements to come!
+
 #### Arguments
 |Short Name|Long Name|Type|Description|
 |-|-|-|-|
