@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import argparse
+import datetime
 import json
 import logging
 import os
 import re
 from typing import Dict, List
+from zoneinfo import ZoneInfo
 
 import shopgoodwill
 
@@ -191,8 +193,17 @@ def main():
     if os.path.isfile(seen_listings_filename):
         with open(seen_listings_filename, "r") as f:
             seen_listings = json.load(f)
+
+        # if the user has an old seen_listings file,
+        # delete all entries (and let them know about it)
+        if not isinstance(seen_listings, dict):
+            logger.warning(
+                "Deprecated seen_listings file format detected - "
+                "clearing existing seen_listings"
+            )
+            seen_listings = dict()
     else:
-        seen_listings = list()
+        seen_listings = dict()
 
     if not args.all and args.query_name not in saved_queries:
         logger.error(f'Invalid query_name "{args.query_name}" - exiting')
@@ -220,7 +231,9 @@ def main():
                 relevant_attrs[key] = str(listing[key])
                 relevant_attrs["url"] = f"https://shopgoodwill.com/item/{item_id}"
 
-            seen_listings.append(item_id)
+            seen_listings[item_id] = sgw.convert_timestamp_to_datetime(
+                listing["endTime"]
+            ).isoformat()
             alert_queue.append(relevant_attrs)
 
         if alert_queue:
@@ -241,6 +254,18 @@ def main():
             logger.info("\n".join(formatted_msg_lines))
 
     # save new results of seen listings
+
+    # but before we do, trim the stale entries
+    now = datetime.datetime.now().astimezone(ZoneInfo("Etc/UTC"))
+    keys_to_drop = list()
+
+    for item_id, end_time in seen_listings.items():
+        if now > datetime.datetime.fromisoformat(end_time):
+            keys_to_drop.append(item_id)
+
+    for item_id in keys_to_drop:
+        del seen_listings[item_id]
+
     with open(seen_listings_filename, "w") as f:
         json.dump(seen_listings, f)
 
