@@ -1,6 +1,8 @@
 import base64
+import datetime
 import urllib.parse
 from typing import Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 import requests
 from Crypto.Cipher import AES
@@ -34,7 +36,6 @@ def shop_goodwill_err_hook(res: Response, *args, **kwargs):
     # TODO but how can we _really_ tell if a 403 is a session outage?
     # Maybe try getting another predefined page that requires login
     # eg. profile info
-
 
     return res
 
@@ -85,6 +86,30 @@ class Shopgoodwill:
                     raise Exception("Invalid auth_info provided!")
 
             self.logged_in = True
+
+    def convert_timestamp_to_datetime(self, sgw_timestamp: str) -> datetime.datetime:
+        """
+        Given a timestamp string from SGW,
+        return a datetime.datetime object,
+        accounting for the implied timezone (PST/PDT)
+
+        :param swg_timestamp: A string timestamp from SGW
+        :type swg_timestamp: str
+        :return: A datetime.datetime object representing the timestamp
+        :rtype: datetime.datetime
+        """
+
+        # if there are any milliseconds in this timestamp,
+        # truncate it
+
+        if "." in sgw_timestamp:
+            sgw_timestamp = sgw_timestamp[: sgw_timestamp.find(".")]
+
+        return (
+            datetime.datetime.fromisoformat(sgw_timestamp)
+            .replace(tzinfo=ZoneInfo("US/Pacific"))
+            .astimezone(ZoneInfo("Etc/UTC"))
+        )
 
     def _encrypt_login_value(self, plaintext: str) -> str:
         """
