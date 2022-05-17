@@ -221,8 +221,9 @@ def main():
         alert_queue = list()
 
         for listing in total_listings:
+            item_id = str(listing["itemId"])
+
             # skip seen listings
-            item_id = listing["itemId"]
             if item_id in seen_listings:
                 continue
 
