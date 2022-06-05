@@ -343,6 +343,11 @@ class Shopgoodwill:
             )
             page_listings = query_res.json()["searchResults"]["items"]
 
+            # err check
+            # see https://github.com/scottmconway/shopgoodwill-scripts/issues/12
+            if query_res.json().get("categoryListModel", None) is None:
+                raise Exception("Error response from query endpoint")
+
             # break if this page is empty
             if not page_listings:
                 return total_listings
