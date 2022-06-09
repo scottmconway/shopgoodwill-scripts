@@ -8,6 +8,7 @@ import os
 import re
 from typing import Dict, List
 from zoneinfo import ZoneInfo
+import parsedatetime
 
 import shopgoodwill
 
@@ -68,7 +69,7 @@ def saved_search_to_query(saved_search: Dict) -> Dict:
     return saved_search
 
 
-def filter_listings(query_json: Dict, listings: List[Dict]) -> List[Dict]:
+def filter_listings(query_json: Dict, listings: List[Dict], query_name: str, filters: Dict) -> List[Dict]:
     """
     Given a list of query results, filter the query results
     according to attributes in the query JSON.
@@ -97,9 +98,34 @@ def filter_listings(query_json: Dict, listings: List[Dict]) -> List[Dict]:
     quote_regex = re.compile(r"[\'\"].+?[\'\"]")
     search_string = query_json["searchText"].lower()
     quotes = quote_regex.findall(search_string)
+    
+    #get time filter
+    time_remaining = filters.get(query_name,{}).get("time_remaining") or filters.get("time_remaining")
 
     for listing in listings:
         failure = False
+
+        if time_remaining:
+            end_time = (
+                datetime.datetime.fromisoformat(listing["endTime"])
+                .replace(tzinfo=ZoneInfo("US/Pacific"))
+                .astimezone(ZoneInfo("Etc/UTC"))
+            )
+            now = datetime.datetime.now().astimezone(ZoneInfo("Etc/UTC"))
+            item_time_remaining = end_time - now
+            cal = parsedatetime.Calendar()
+            filter_time_remaining = (
+                cal.parseDT(time_remaining[1:], sourceTime=datetime.datetime.min)[0]
+                - datetime.datetime.min
+            )
+            #fail if time left on auction is more than time_remaing or ended and checking for less than
+            if time_remaining[0] == "<":
+                if item_time_remaining >= filter_time_remaining or item_time_remaining.seconds < 0:
+                    failure = True
+            #fail if time left on auction is less than time_remaing and checking for more than
+            if time_remaining[0] == ">":
+                if item_time_remaining <= filter_time_remaining:
+                    failure = True
 
         for quote in quotes:
             if quote[1:-1] not in listing["title"].lower():
@@ -214,9 +240,12 @@ def main():
     else:
         queries_to_run = {args.query_name: saved_queries[args.query_name]}
 
+    #get general and item specific additional filters
+    filters = config.get("filters",{})
+
     for query_name, query_json in queries_to_run.items():
         query_res = sgw.get_query_results(query_json)
-        total_listings = filter_listings(query_json, query_res)
+        total_listings = filter_listings(query_json, query_res, query_name, filters)
 
         alert_queue = list()
 
@@ -273,3 +302,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
