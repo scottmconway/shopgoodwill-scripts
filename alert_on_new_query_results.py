@@ -8,6 +8,7 @@ import os
 import re
 from typing import Dict, List
 from zoneinfo import ZoneInfo
+
 import parsedatetime
 
 import shopgoodwill
@@ -69,7 +70,9 @@ def saved_search_to_query(saved_search: Dict) -> Dict:
     return saved_search
 
 
-def filter_listings(query_json: Dict, listings: List[Dict], query_name: str, filters: Dict) -> List[Dict]:
+def filter_listings(
+    query_json: Dict, listings: List[Dict], query_name: str, filters: Dict
+) -> List[Dict]:
     """
     Given a list of query results, filter the query results
     according to attributes in the query JSON.
@@ -79,8 +82,13 @@ def filter_listings(query_json: Dict, listings: List[Dict], query_name: str, fil
 
     :param query_json: A query json for use with sgw.get_query_listings
     :type query_json: Dict
-    :param listings: a list of listings, as returned by sgw.get_query_listings
+    :param listings: A list of listings, as returned by sgw.get_query_listings
     :type listings: List[Dict]
+    :param query_name: A string used to match search queries to filters
+    :type query_name: str
+    :param filters: A dictionary of specific and global filters to apply
+    :type filters: Dict
+        Current filters are time_remaining which is ("<" | ">") + datetimeString
     :return: listings, filtered by rules defined in the query JSON
     :param listings: A list of listings, as returned by sgw.get_query_listings
     :type listings: List[Dict]
@@ -98,9 +106,11 @@ def filter_listings(query_json: Dict, listings: List[Dict], query_name: str, fil
     quote_regex = re.compile(r"[\'\"].+?[\'\"]")
     search_string = query_json["searchText"].lower()
     quotes = quote_regex.findall(search_string)
-    
-    #get time filter
-    time_remaining = filters.get(query_name,{}).get("time_remaining") or filters.get("time_remaining")
+
+    # get time filter
+    time_remaining = filters.get(query_name, dict()).get(
+        "time_remaining"
+    ) or filters.get("time_remaining")
 
     for listing in listings:
         failure = False
@@ -118,12 +128,15 @@ def filter_listings(query_json: Dict, listings: List[Dict], query_name: str, fil
                 cal.parseDT(time_remaining[1:], sourceTime=datetime.datetime.min)[0]
                 - datetime.datetime.min
             )
-            #fail if time left on auction is more than time_remaing or ended and checking for less than
+            # fail if time left on auction is more than time_remaing or ended and checking for less than
             if time_remaining[0] == "<":
-                if item_time_remaining >= filter_time_remaining or item_time_remaining.seconds < 0:
+                if (
+                    item_time_remaining >= filter_time_remaining
+                    or item_time_remaining.seconds < 0
+                ):
                     failure = True
-            #fail if time left on auction is less than time_remaing and checking for more than
-            if time_remaining[0] == ">":
+            # fail if time left on auction is less than time_remaing and checking for more than
+            elif time_remaining[0] == ">":
                 if item_time_remaining <= filter_time_remaining:
                     failure = True
 
@@ -240,8 +253,8 @@ def main():
     else:
         queries_to_run = {args.query_name: saved_queries[args.query_name]}
 
-    #get general and item specific additional filters
-    filters = config.get("filters",{})
+    # get general and item specific additional filters
+    filters = config.get("filters", dict())
 
     for query_name, query_json in queries_to_run.items():
         query_res = sgw.get_query_results(query_json)
@@ -302,4 +315,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
