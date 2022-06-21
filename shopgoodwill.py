@@ -62,7 +62,7 @@ class Shopgoodwill:
         if auth_info:
             # check if auth token exists, and if it works
             access_token = auth_info.get("access_token", None)
-            if self.access_token_is_valid(access_token):
+            if access_token and self.access_token_is_valid(access_token):
                 self.shopgoodwill_session.headers[
                     "Authorization"
                 ] = f"Bearer {access_token}"
