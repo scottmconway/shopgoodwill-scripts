@@ -6,7 +6,7 @@ import json
 import logging
 from json.decoder import JSONDecodeError
 from time import sleep
-from typing import Dict, Optional
+from typing import Dict, Optional, Type
 from zoneinfo import ZoneInfo
 
 import parsedatetime
@@ -140,7 +140,7 @@ class BidSniper:
 
     def time_alert(
         self, item_id: int, end_time: datetime.datetime
-    ) -> schedule.CancelJob:
+    ) -> Type[schedule.CancelJob]:
         """
         Simply logs an alert to remind the user that an auction is ending
 
@@ -168,7 +168,7 @@ class BidSniper:
 
         return schedule.CancelJob
 
-    def place_bid(self, item_id: int) -> schedule.CancelJob:
+    def place_bid(self, item_id: int) -> Type[schedule.CancelJob]:
         """
         Given an item ID, do the following:
             Check if it's still in our favorites
@@ -218,10 +218,9 @@ class BidSniper:
         # which is _only_ available on the item page
         try:
             item_info = self.shopgoodwill_client.get_item_bid_info(item_id)
+
         except HTTPError as he:
-            self.logger.error(
-                f"HTTPError getting info for item '{item_info['title']}' - {he}"
-            )
+            self.logger.error(f"HTTPError getting info for item ID '{item_id}' - {he}")
             return schedule.CancelJob
 
         # Don't try bidding if we can't win
