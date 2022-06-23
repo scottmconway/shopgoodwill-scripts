@@ -284,7 +284,7 @@ class BidSniper:
                 self.logger.debug(
                     "Scheduling time alert for item " f"{item_id} in {delta_to_event}"
                 )
-                schedule.every(delta_to_event.seconds).seconds.do(
+                schedule.every(round(delta_to_event.total_seconds())).seconds.do(
                     self.time_alert,
                     item_id,
                     end_time,
@@ -307,7 +307,7 @@ class BidSniper:
                 self.logger.debug(
                     "Scheduling bid for item " f"{item_id} in {delta_to_event}"
                 )
-                schedule.every(delta_to_event.seconds).seconds.do(
+                schedule.every(round(delta_to_event.total_seconds())).seconds.do(
                     self.place_bid, item_id
                 )
 
