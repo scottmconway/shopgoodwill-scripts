@@ -48,6 +48,7 @@ class Shopgoodwill:
         "iv": b"0000000000000000",  # You love to see it
         "block_size": 16,
     }
+    FAVORITES_MAX_NOTE_LENGTH = 256
 
     def __init__(self, auth_info: Optional[Dict] = None):
         self.shopgoodwill_session = requests.Session()
@@ -256,6 +257,57 @@ class Shopgoodwill:
             parsed_favorites[int(favorite["itemId"])] = favorite
 
         return parsed_favorites
+
+    @requires_auth
+    def add_favorite(self, item_id: int, note: Optional[str] = None) -> None:
+        """
+        Given an Item ID, attampt to add it to the logged in user's favorites,
+        optionally with a note.
+
+        :param item_id: A valid item ID
+        :type item_id: int
+        :param note: If specified,
+            text to add to the favorite after its creation
+        :type note: Optional[str]
+        :rtype: None
+        """
+
+        self.shopgoodwill_session.get(
+            f"{Shopgoodwill.API_ROOT}/Favorite/AddToFavorite",
+            params={"itemId": item_id},
+        )
+        if note:
+            self.add_favorite_note(item_id, note)
+
+    @requires_auth
+    def add_favorite_note(self, item_id: int, note: str) -> None:
+        """
+        Given an Item ID of an item in the logged in user's favorites,
+        add the requested note to it.
+
+        :param item_id: A valid item ID
+        :type item_id: int
+        :param note: If specified,
+            text to add to the favorite after its creation
+        :type note: Optional[str]
+        :rtype: None
+        """
+
+        if len(note) > Shopgoodwill.FAVORITES_MAX_NOTE_LENGTH:
+            # TODO add a logger and log a warning here
+            note = note[:256]
+
+        favorites = self.get_favorites()
+        if item_id not in favorites:
+            raise Exception(f"Item {item_id} not in user's favorites!")
+
+        watchlist_id = favorites[item_id]["watchlistId"]
+
+        # note that the webapp passes a "date" value, but it is not necessary
+        self.shopgoodwill_session.post(
+            f"{Shopgoodwill.API_ROOT}/Favorite/Save",
+            json={"notes": note, "watchlistId": watchlist_id},
+        )
 
     @requires_auth
     def place_bid(

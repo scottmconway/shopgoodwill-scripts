@@ -133,5 +133,16 @@ Alternatively, if you can create one from scratch, if you'd like to guess at the
 Once you have a query, you can insert it into the configuration file under `saved_queries` with a distinctive name.
 *Note* - the `page` and `pageSize` attributes in a query will be ignored, and the query will paginate until all results have been accounted for. Additionally, `closedAuctionEndingDate` can be adjusted to an invalid date (eg. 1/1/1), which _should_ cover all of time. Since the search function only returns active listings, there isn't concern of getting stale results.
 
-## Final Notes
+#### Final Notes
 It's worth noting that the logic to derive a query JSON from a ShopGoodwill saved search may not be 100% accurate. Thus, I'd recommend using query JSONs in the config file if possible. If you're interested in knowing why I take this view, check out how saved searches actually generate queries in the web UI. It's not straight-forward. Not to take this time to rant, but the API is _dirty_.
+
+### `schedule_bid.py`
+
+This is a simple script to automate favoriting and making a note to have `bid_sniper` bid on a given item before it ends.
+
+#### Arguments
+|Short Name|Long Name|Type|Description|
+|-|-|-|-|
+|N/A|`item_id`|`int`|The item ID for which to schedule a bid|
+|N/A|`bid_amount`|`float`|The max bid amount to submit|
+|N/A|`--config`|`str`|Path to config file - defaults to ./config.json|
