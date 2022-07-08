@@ -169,14 +169,11 @@ class BidSniper:
                 }
 
             except BaseException as be:
-                self.logger.error(
-                    f"{type(be).__name__} updating favorites cache - {be}"
-                )
-
-                # TODO do we keep the stale cache, or raise the exception?
-                # stale caches can lead to erroneous bids
-                #
-                # for now we'll do nothing
+                # TODO this should list all possible exceptions that SGW could raise
+                if self.outage_start_time is not None:
+                    self.logger.error(
+                        f"{type(be).__name__} updating favorites cache - {be}"
+                    )
 
     def time_alert(
         self, item_id: int, end_time: datetime.datetime
