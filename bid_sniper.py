@@ -10,8 +10,10 @@ from typing import Dict, Optional, Type
 from zoneinfo import ZoneInfo
 
 import parsedatetime
+import requests
 import schedule
 from requests.exceptions import HTTPError
+from requests.models import Response
 
 import shopgoodwill
 
@@ -48,10 +50,37 @@ def get_timedelta_to_time(
 
 
 class BidSniper:
+    def outage_check_hook(self, http_response: Response, *args, **kwargs):
+        if http_response.status_code in range(500, 600):
+            if self.outage_start_time is None:
+                # start tracking this outage
+                self.outage_start_time = datetime.datetime.now()
+                self.logger.error(
+                    f"Outage detected - SWG returned HTTP {http_response.status_code} for URL {http_response.url}"
+                )
+            else:
+                # already tracking this error, don't do anything
+                pass
+
+        else:
+            # If there's no error and there was an ongoing outage,
+            # stop tracking it and alert on the elapsed time
+            if self.outage_start_time is not None:
+                elapsed_outage_time = datetime.datetime.now() - self.outage_start_time
+                self.outage_start_time = None
+
+                self.logger.info(f"Outage ended - time elapsed: {elapsed_outage_time}")
+
+        # TODO this should instead call SGW's shopgoodwill_err_hook method
+        # TODO move the above from a function to a method!
+        http_response.raise_for_status()
+
     def __init__(self, config: Dict, dry_run: bool = False) -> None:
         self.config = config
         self.dry_run = dry_run
         self.dry_run_msg = "DRY-RUN: " if dry_run else ""
+
+        self.outage_start_time = None
 
         # logging setup
         self.logger = logging.getLogger("shopgoodwill_bid_sniper")
@@ -79,6 +108,14 @@ class BidSniper:
         else:
             self.shopgoodwill_client = shopgoodwill.Shopgoodwill(config["auth_info"])
             self.bid_shopgoodwill_client = self.shopgoodwill_client
+
+        # modify the hooks for our shopgoodwill sessions
+        self.shopgoodwill_client.shopgoodwill_session.hooks[
+            "response"
+        ] = self.outage_check_hook
+        self.bid_shopgoodwill_client.shopgoodwill_session.hooks[
+            "response"
+        ] = self.outage_check_hook
 
         # custom time alerting setup
         self.alert_time_deltas = list()
@@ -131,12 +168,12 @@ class BidSniper:
                     "last_updated": datetime.datetime.now(),
                 }
 
-            except HTTPError as he:
-                self.logger.error(f"HTTPError updating favorites cache - {he}")
-                # TODO do we keep the stale cache, or raise the exception?
-                # stale caches can lead to erroneous bids
-                #
-                # for now we'll do nothing
+            except BaseException as be:
+                # TODO this should list all possible exceptions that SGW could raise
+                if self.outage_start_time is not None:
+                    self.logger.error(
+                        f"{type(be).__name__} updating favorites cache - {be}"
+                    )
 
     def time_alert(
         self, item_id: int, end_time: datetime.datetime
@@ -219,8 +256,10 @@ class BidSniper:
         try:
             item_info = self.shopgoodwill_client.get_item_bid_info(item_id)
 
-        except HTTPError as he:
-            self.logger.error(f"HTTPError getting info for item ID '{item_id}' - {he}")
+        except BaseException as be:
+            self.logger.error(
+                f"{type(be).__name__} getting info for item ID '{item_id} - {be}"
+            )
             return schedule.CancelJob
 
         # Don't try bidding if we can't win

@@ -13,33 +13,6 @@ from requests.models import PreparedRequest, Response
 # TODO add pagination
 
 
-def shop_goodwill_err_hook(res: Response, *args, **kwargs):
-    res.raise_for_status()
-    # res_js = res.json()
-
-    # TODO sometimes the status field appears, other times it does not
-    # eg. it's absent in the query response page
-    # if not res_js['status']:
-    #    raise Exception("Error in ShopGoodwill API response")
-
-    # TODO investigate possible values of "message" field
-    # so far I've seen "Success" and "Ok"
-    #
-    # sometimes this field is absent, too.
-
-    # TODO sometimes we'll get 403s,
-    # seemingly indicating that our session prematurely ended
-    #
-    # Next steps - re-login if we get a 403,
-    # attempt X (5) times, then raise the _real_ 40X
-    #
-    # TODO but how can we _really_ tell if a 403 is a session outage?
-    # Maybe try getting another predefined page that requires login
-    # eg. profile info
-
-    return res
-
-
 class Shopgoodwill:
     LOGIN_PAGE_URL = "https://shopgoodwill.com/signin"
     API_ROOT = "https://buyerapi.shopgoodwill.com/api"
@@ -50,6 +23,30 @@ class Shopgoodwill:
     }
     FAVORITES_MAX_NOTE_LENGTH = 256
 
+    def shopgoodwill_err_hook(self, res: Response, *args, **kwargs) -> None:
+        res.raise_for_status()
+        # res_js = res.json()
+
+        # TODO sometimes the status field appears, other times it does not
+        # eg. it's absent in the query response page
+        # if not res_js['status']:
+        #    raise Exception("Error in ShopGoodwill API response")
+
+        # TODO investigate possible values of "message" field
+        # so far I've seen "Success" and "Ok"
+        #
+        # sometimes this field is absent, too.
+
+        # TODO sometimes we'll get 403s,
+        # seemingly indicating that our session prematurely ended
+        #
+        # Next steps - re-login if we get a 403,
+        # attempt X (5) times, then raise the _real_ 40X
+        #
+        # TODO but how can we _really_ tell if a 403 is a session outage?
+        # Maybe try getting another predefined page that requires login
+        # eg. profile info
+
     def __init__(self, auth_info: Optional[Dict] = None):
         self.shopgoodwill_session = requests.Session()
 
@@ -57,7 +54,7 @@ class Shopgoodwill:
         self.shopgoodwill_session.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0"
         }
-        self.shopgoodwill_session.hooks["response"] = shop_goodwill_err_hook
+        self.shopgoodwill_session.hooks["response"] = self.shopgoodwill_err_hook
         self.logged_in = False
 
         if auth_info:
@@ -191,15 +188,18 @@ class Shopgoodwill:
             "remember": False,
             "clientIpAddress": "0.0.0.4",
             "appVersion": "00099a1be3bb023ff17d",
-            "username": username,  # TODO deal with encryption
-            "password": password,  # TODO deal with encryption
+            "username": username,
+            "password": password,
         }
 
-        # Temporarily drop the requests hook,
+        # Temporarily drop the requests hook
         # so we can add the set-cookies from this HTML page
         self.shopgoodwill_session.hooks["response"] = None
+
+        # TODO we should still check for exceptions here
         self.shopgoodwill_session.get(Shopgoodwill.LOGIN_PAGE_URL)
-        self.shopgoodwill_session.hooks["response"] = shop_goodwill_err_hook
+
+        self.shopgoodwill_session.hooks["response"] = self.shopgoodwill_err_hook
 
         res = self.shopgoodwill_session.post(
             Shopgoodwill.API_ROOT + "/SignIn/Login", json=login_params
