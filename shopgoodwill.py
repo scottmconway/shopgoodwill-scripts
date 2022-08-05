@@ -17,6 +17,7 @@ _SHIPPING_COST_PATTERN = re.compile(
     r"Shipping: <span id='shipping-span'>\$(\d+\.\d+) \(.*\)<\/span>"
 )
 
+
 class Shopgoodwill:
     LOGIN_PAGE_URL = "https://shopgoodwill.com/signin"
     API_ROOT = "https://buyerapi.shopgoodwill.com/api"
@@ -419,7 +420,9 @@ class Shopgoodwill:
                 ):
                     return total_listings
 
-    def get_item_shipping_estimate(self, item_id: int, zip_code: str) -> Optional[float]:
+    def get_item_shipping_estimate(
+        self, item_id: int, zip_code: str
+    ) -> Optional[float]:
         """
         Given an item id and a zip code, returns the extracted estimated
         shipping cost result.
@@ -436,13 +439,13 @@ class Shopgoodwill:
         resp = self.shopgoodwill_session.post(
             f"{Shopgoodwill.API_ROOT}/itemDetail/CalculateShipping",
             json={
-                "itemId":item_id,
-                "zipCode":zip_code,
-                "country":"US",
-                "province":None,
-                "quantity":1,
-                "clientIP":"0.0.0.0"
-            }
+                "itemId": item_id,
+                "zipCode": zip_code,
+                "country": "US",
+                "province": None,
+                "quantity": 1,
+                "clientIP": "0.0.0.0",
+            },
         )
 
         shipping_est_price = _SHIPPING_COST_PATTERN.findall(resp.text)
