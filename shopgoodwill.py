@@ -419,7 +419,7 @@ class Shopgoodwill:
                 ):
                     return total_listings
 
-    def get_item_shipping_estimate(self, item_id: int, zip_code: str) -> float:
+    def get_item_shipping_estimate(self, item_id: int, zip_code: str) -> Optional[float]:
         """
         Given an item id and a zip code, returns the extracted estimated
         shipping cost result.
