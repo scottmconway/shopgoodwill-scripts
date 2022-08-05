@@ -4,6 +4,7 @@ import urllib.parse
 from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
+import re
 import requests
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -11,6 +12,10 @@ from requests.exceptions import HTTPError
 from requests.models import PreparedRequest, Response
 
 # TODO add pagination
+
+_SHIPPING_COST_PATTERN = re.compile(
+    r"Shipping: <span id='shipping-span'>\$(\d+\.\d+) \(.*\)<\/span>"
+)
 
 
 class Shopgoodwill:
@@ -414,6 +419,41 @@ class Shopgoodwill:
                     == query_res.json()["searchResults"]["itemCount"]
                 ):
                     return total_listings
+
+    def get_item_shipping_estimate(
+        self, item_id: int, zip_code: str
+    ) -> Optional[float]:
+        """
+        Given an item id and a zip code, returns the extracted estimated
+        shipping cost result.
+
+        :param item_id: A valid Shopgoodwill item id
+        :type item_id: int
+        :param zip_code: A valid US zip or zip+4 code
+        :type zip_code: str
+        :return: A float representation of the estimated shipping cost
+        extracted from the xml api response
+        :rtype: float
+        """
+
+        resp = self.shopgoodwill_session.post(
+            f"{Shopgoodwill.API_ROOT}/itemDetail/CalculateShipping",
+            json={
+                "itemId": item_id,
+                "zipCode": zip_code,
+                "country": "US",
+                "province": None,
+                "quantity": 1,
+                "clientIP": "0.0.0.0",
+            },
+        )
+
+        shipping_est_price = _SHIPPING_COST_PATTERN.findall(resp.text)
+        if len(shipping_est_price) > 0:
+            shipping_est_price = float(shipping_est_price[0])
+        else:
+            shipping_est_price = None
+        return shipping_est_price
 
     # TODO maybe if there's any internal consistency
     def paginate_request(self, prepared_request: PreparedRequest) -> List[Dict]:

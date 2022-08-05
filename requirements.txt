@@ -1,4 +1,4 @@
-Crypto
+pycryptodome
 gotify-handler
 parsedatetime
 python-daemon
