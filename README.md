@@ -128,7 +128,7 @@ Further improvements to come!
 #### Query Generation
 The easiest way to generate a query JSON is to make an [Advanced Search](https://shopgoodwill.com/search/advancedsearch) on ShopGoodwill. Simply craft the query you'd like, open the network console, and click the search button. The XHR POST request to `https://buyerapi.shopgoodwill.com/api/Search/ItemListing` contains the JSON that you're looking for.
 
-Alternatively, if you can create one from scratch, if you'd like to guess at the query values. See `config.json.example`'s `saved_queries` section for the required fields. 
+Alternatively, if you can create one from scratch, if you'd like to guess at the query values. See `config.json.example`'s `saved_queries` section for the required fields. Note that all fields have default values, so you can just specify the non-default attributes in this config section.
 
 Once you have a query, you can insert it into the configuration file under `saved_queries` with a distinctive name.
 *Note* - the `page` and `pageSize` attributes in a query will be ignored, and the query will paginate until all results have been accounted for. Additionally, `closedAuctionEndingDate` can be adjusted to an invalid date (eg. 1/1/1), which _should_ cover all of time. Since the search function only returns active listings, there isn't concern of getting stale results.

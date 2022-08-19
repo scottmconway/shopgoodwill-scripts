@@ -38,6 +38,60 @@ SAVED_SEARCH_TO_QUERY_PARAMS = {
     "selectedCategoryIds": "catIds",
 }
 
+SAVED_QUERY_DEFAULTS = {
+    "isSize": False,
+    "isWeddingCatagory": "false",
+    "isMultipleCategoryIds": False,
+    "isFromHeaderMenuTab": False,
+    "layout": "",
+    "searchText": "",
+    "selectedGroup": "",
+    "selectedCategoryIds": "",
+    "selectedSellerIds": "",
+    "lowPrice": "0",
+    "highPrice": "999999",
+    "searchBuyNowOnly": "",
+    "searchPickupOnly": "false",
+    "searchNoPickupOnly": "false",
+    "searchOneCentShippingOnly": "false",
+    "searchDescriptions": "false",
+    "searchClosedAuctions": "false",
+    "closedAuctionEndingDate": "1/1/1",
+    "closedAuctionDaysBack": "7",
+    "searchCanadaShipping": "false",
+    "searchInternationalShippingOnly": "false",
+    "sortColumn": "1",
+    "page": "1",
+    "pageSize": "40",
+    "sortDescending": "false",
+    "savedSearchId": 0,
+    "useBuyerPrefs": "true",
+    "searchUSOnlyShipping": "false",
+    "categoryLevelNo": "1",
+    "categoryLevel": 1,
+    "categoryId": 0,
+    "partNumber": "",
+    "catIds": "",
+}
+
+
+def set_query_defaults(saved_query: Dict) -> Dict:
+    """
+    Given a saved query from disk,
+    append any attributes needed by SGW that the user omitted
+
+    :param saved_query: A saved query from the configuration file
+    :type saved_query: Dict
+    :return: The same query will all absent fields set to their defaults
+    :rtype: Dict
+    """
+
+    for attr_name, attr_default in SAVED_QUERY_DEFAULTS.items():
+        if attr_name not in saved_query:
+            saved_query[attr_name] = attr_default
+
+    return saved_query
+
 
 def saved_search_to_query(saved_search: Dict) -> Dict:
     """
@@ -257,6 +311,7 @@ def main():
     filters = config.get("filters", dict())
 
     for query_name, query_json in queries_to_run.items():
+        query_json = set_query_defaults(query_json)  # expand query before submitting it
         query_res = sgw.get_query_results(query_json)
         total_listings = filter_listings(query_json, query_res, query_name, filters)
 
