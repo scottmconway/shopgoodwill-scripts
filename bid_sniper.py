@@ -4,7 +4,9 @@ import argparse
 import datetime
 import json
 import logging
+import queue
 from json.decoder import JSONDecodeError
+from logging.handlers import QueueHandler, QueueListener
 from time import sleep
 from typing import Dict, Optional, Type
 from zoneinfo import ZoneInfo
@@ -87,10 +89,18 @@ class BidSniper:
         logging.basicConfig()
         logging_conf = config.get("logging", dict())
         self.logger.setLevel(logging_conf.get("log_level", logging.INFO))
+
+        log_queue = queue.Queue()
+        queue_handler = QueueHandler(log_queue)
+
         if "gotify" in logging_conf:
             from gotify_handler import GotifyHandler
 
-            self.logger.addHandler(GotifyHandler(**logging_conf["gotify"]))
+            queue_listener = QueueListener(
+                log_queue, GotifyHandler(**logging_conf["gotify"])
+            )
+            self.logger.addHandler(queue_handler)
+            queue_listener.start()
 
         # TODO since this is a daemon,
         # we'll actually have to bother refreshing the token!
@@ -275,6 +285,7 @@ class BidSniper:
         self.logger.warning(
             f"{self.dry_run_msg}Placing bid on '{item_info['title']}' for {max_bid}"
         )
+
         if not self.dry_run:
             # TODO in the future, address how SGW uses quantity
             # I don't think they use it in auctions
