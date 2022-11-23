@@ -105,6 +105,7 @@ The following values are under `bid_sniper` in the example config file.
 |`refresh_seconds`|`int`|The number of seconds apart to schedule execution of the program's main loop|
 |`bid_snipe_time_delta`|`str`|A valid time delta string representing the time before an auction ending, when a bid will be placed|
 |`favorites_max_cache_seconds`|`int`|If the favorites cache is older than this number of seconds, it will be refreshed. This value is ignored when placing a bid. At that time, it's forcibly refreshed|
+|`friend_list`|`List[str]`|A list of users that you don't want to outbid. Usernames should be in the obfuscated format of first character, four asterisks, and the last character. eg. `a****b`. Usernames are case-sensitive.|
 |`alert_time_deltas`|`List[str]`|A list of time delta strings for which to alert the user of an auction's ending time. eg. "1 hour" will cause a notification 1 hour before the end of every watched auction|
 
 ### `alert_on_new_query_results.py`

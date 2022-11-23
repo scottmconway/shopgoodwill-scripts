@@ -17,6 +17,7 @@
         "refresh_seconds": 300,
         "bid_snipe_time_delta": "30 seconds",
         "favorites_max_cache_seconds": 60,
+        "friend_list": [],
         "alert_time_deltas": [
             "1 hour",
             "30 minutes",

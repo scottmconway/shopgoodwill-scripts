@@ -58,7 +58,7 @@ class BidSniper:
                 # start tracking this outage
                 self.outage_start_time = datetime.datetime.now()
                 self.logger.error(
-                    f"Outage detected - SWG returned HTTP {http_response.status_code} for URL {http_response.url}"
+                    f"Outage detected - SGW returned HTTP {http_response.status_code} for URL {http_response.url}"
                 )
             else:
                 # already tracking this error, don't do anything
@@ -281,6 +281,14 @@ class BidSniper:
             )
             return schedule.CancelJob
 
+        # Don't bid if the current highest bidder is on our friend list
+        bidder_name = item_info["bidHistory"]["bidSummary"][0]["bidderName"]
+        if bidder_name in self.config.get("friend_list", list()):
+            self.logger.info(
+                "Canceling bid due to friendship for item '{item_info['title']}' - current high bidder {bidder_name}"
+            )
+            return schedule.CancelJob
+
         # finally place a bid
         self.logger.warning(
             f"{self.dry_run_msg}Placing bid on '{item_info['title']}' for {max_bid}"
@@ -332,7 +340,7 @@ class BidSniper:
                     continue
 
                 self.logger.debug(
-                    "Scheduling time alert for item " f"{item_id} in {delta_to_event}"
+                    f"Scheduling time alert for item '{favorite_info['title']}' in {delta_to_event}"
                 )
                 schedule.every(round(delta_to_event.total_seconds())).seconds.do(
                     self.time_alert,
@@ -355,7 +363,7 @@ class BidSniper:
 
                 delta_to_event = get_timedelta_to_time(end_time - bid_time_delta)
                 self.logger.debug(
-                    "Scheduling bid for item " f"{item_id} in {delta_to_event}"
+                    f"Scheduling bid for item '{favorite_info['title']}' in {delta_to_event}"
                 )
                 schedule.every(round(delta_to_event.total_seconds())).seconds.do(
                     self.place_bid, item_id

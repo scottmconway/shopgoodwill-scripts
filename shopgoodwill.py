@@ -96,8 +96,8 @@ class Shopgoodwill:
         return a datetime.datetime object,
         accounting for the implied timezone (PST/PDT)
 
-        :param swg_timestamp: A string timestamp from SGW
-        :type swg_timestamp: str
+        :param sgw_timestamp: A string timestamp from SGW
+        :type sgw_timestamp: str
         :return: A datetime.datetime object representing the timestamp
         :rtype: datetime.datetime
         """
