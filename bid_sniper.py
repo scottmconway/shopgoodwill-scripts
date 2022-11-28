@@ -264,7 +264,7 @@ class BidSniper:
         # we need the sellerId before placing a bid,
         # which is _only_ available on the item page
         try:
-            item_info = self.shopgoodwill_client.get_item_bid_info(item_id)
+            item_info = self.shopgoodwill_client.get_item_info(item_id)
 
         except BaseException as be:
             self.logger.error(
@@ -273,11 +273,11 @@ class BidSniper:
             return schedule.CancelJob
 
         # Don't try bidding if we can't win
-        if max_bid < item_info["currentPrice"]:
+        if max_bid < item_info["minimumBid"]:
             # tell the user what happened
             self.logger.warning(
                 f"Bid amount {max_bid} for item '{item_info['title']}' "
-                f"below current price {item_info['currentPrice']}"
+                f"below minimum bid price {item_info['minimumBid']}"
             )
             return schedule.CancelJob
 
