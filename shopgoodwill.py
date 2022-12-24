@@ -336,6 +336,12 @@ class Shopgoodwill:
 
         High Bidder (w/ templated date/time):
             <h3><b>Bid Received! </b></h3><p>You are <strong>currently</strong> the high bidder for this auction. </p><p>This item ends at %-m/%-d/%Y -%-H:%M:%S %p PT, check back then for results. </p><p>Did you know? You can choose to not receive bid notifications by email. Simply visit your <a href='https://shopgoodwill.com//shopgoodwill/personal-information'> Buyer/Contact Information page.</a></p>
+
+        Auction Closed (w/ templated date/time):
+            result: -3
+            message: "Auction has closed. Auction ended as of 12/20/2022 7:01:00 PM PT"
+            currentPrice: null
+            status: false
         """
 
         # TODO should we return the outcome?
