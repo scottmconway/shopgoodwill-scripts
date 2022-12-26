@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 
 import argparse
+import asyncio
 import datetime
 import json
 import logging
 import queue
 from json.decoder import JSONDecodeError
 from logging.handlers import QueueHandler, QueueListener
-from time import sleep
-from typing import Dict, Optional, Type
+from typing import Dict, Optional
 from zoneinfo import ZoneInfo
 
 import parsedatetime
-import requests
-import schedule
 from requests.exceptions import HTTPError
 from requests.models import Response
 
@@ -28,7 +26,7 @@ def get_timedelta_to_time(
     return a timedelta which is timezone aware or unaware,
     depending on the input datetime
 
-    :param end_time: A datetime object (timzone aware or unaware)
+    :param end_time: A datetime object (timezone aware or unaware)
         from which to get a timedelta from now until then
     :type end_time: datetime.datetime
     :param truncate_microseconds: If set, truncate microseconds from datetimes
@@ -48,6 +46,7 @@ def get_timedelta_to_time(
         return end_time - now
 
     else:
+        # by default, astimezone will return the local timezone
         return end_time - now.astimezone()
 
 
@@ -56,7 +55,7 @@ class BidSniper:
         if http_response.status_code in range(500, 600):
             if self.outage_start_time is None:
                 # start tracking this outage
-                self.outage_start_time = datetime.datetime.now()
+                self.outage_start_time = datetime.datetime.now(datetime.timezone.utc)
                 self.logger.error(
                     f"Outage detected - SGW returned HTTP {http_response.status_code} for URL {http_response.url}"
                 )
@@ -68,7 +67,10 @@ class BidSniper:
             # If there's no error and there was an ongoing outage,
             # stop tracking it and alert on the elapsed time
             if self.outage_start_time is not None:
-                elapsed_outage_time = datetime.datetime.now() - self.outage_start_time
+                elapsed_outage_time = (
+                    datetime.datetime.now(datetime.timezone.utc)
+                    - self.outage_start_time
+                )
                 self.outage_start_time = None
 
                 self.logger.info(f"Outage ended - time elapsed: {elapsed_outage_time}")
@@ -81,6 +83,8 @@ class BidSniper:
         self.config = config
         self.dry_run = dry_run
         self.dry_run_msg = "DRY-RUN: " if dry_run else ""
+
+        self.event_loop = asyncio.new_event_loop()
 
         self.outage_start_time = None
 
@@ -148,15 +152,6 @@ class BidSniper:
             set()
         )  # Will contain itemIds tentatively scheduled for actions
 
-        # initial kick-off run
-        self.main_loop()
-
-        # schedule the main_loop for every X seconds
-        # note that schedule does not account for execution time
-        schedule.every(
-            self.config["bid_sniper"].get("refresh_seconds", 300)
-        ).seconds.do(self.main_loop)
-
         return
 
     def update_favorites_cache(self, max_cache_time: int) -> None:
@@ -170,12 +165,13 @@ class BidSniper:
         """
 
         if (
-            datetime.datetime.now() - self.favorites_cache["last_updated"]
+            datetime.datetime.now(datetime.timezone.utc)
+            - self.favorites_cache["last_updated"]
         ).seconds > max_cache_time:
             try:
                 self.favorites_cache = {
                     "favorites": self.shopgoodwill_client.get_favorites(),
-                    "last_updated": datetime.datetime.now(),
+                    "last_updated": datetime.datetime.now(datetime.timezone.utc),
                 }
 
             except BaseException as be:
@@ -185,9 +181,24 @@ class BidSniper:
                         f"{type(be).__name__} updating favorites cache - {be}"
                     )
 
-    def time_alert(
-        self, item_id: int, end_time: datetime.datetime
-    ) -> Type[schedule.CancelJob]:
+    async def schedule_task(
+        self, coroutine, execution_datetime: datetime.datetime
+    ) -> None:
+        """
+        Simple function to delay a coroutine's execution
+        until a given timezone-aware datetime
+
+        :param coroutine: The coroutine to execute at execution_datetime
+        :param execution_datetime: A timezone-aware datetime
+        :type execution_datetime: datetime.datetime
+        :rtype: None
+        """
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        await asyncio.sleep((execution_datetime - now).total_seconds())
+        self.event_loop.create_task(coroutine)
+
+    async def time_alert(self, item_id: int, end_time: datetime.datetime) -> None:
         """
         Simply logs an alert to remind the user that an auction is ending
 
@@ -195,9 +206,9 @@ class BidSniper:
         :type item_id: int
         :param end_time: The end time of the auction
         :type end_time: datetime.datetime
-        :return: the schedule.CancelJob class, so this only runs once
-        :rtype: schedule.CancelJob
+        :rtype: None
         """
+
         self.update_favorites_cache(
             self.config["bid_sniper"].get("favorites_max_cache_seconds", 60)
         )
@@ -206,16 +217,16 @@ class BidSniper:
         favorite = self.favorites_cache["favorites"].get(item_id, None)
         if favorite:
             delta_until_end = get_timedelta_to_time(end_time)
-            delta_until_end = end_time.replace(
-                microsecond=0
-            ) - datetime.datetime.now().astimezone().replace(microsecond=0)
+            delta_until_end = end_time.replace(microsecond=0) - datetime.datetime.now(
+                datetime.timezone.utc
+            ).replace(microsecond=0)
             self.logger.warning(
                 f"Time alert - {favorite['title']} ending in {delta_until_end}"
             )
 
-        return schedule.CancelJob
+        return None
 
-    def place_bid(self, item_id: int) -> Type[schedule.CancelJob]:
+    async def place_bid(self, item_id: int) -> None:
         """
         Given an item ID, do the following:
             Check if it's still in our favorites
@@ -225,8 +236,7 @@ class BidSniper:
 
         :param item_id: A valid ShopGoodwill item ID
         :type item_id: int
-        :return: the schedule.CancelJob class, so this only runs once
-        :rtype: schedule.CancelJob
+        :rtype: None
         """
 
         # we must be _absolutely_ sure that the user still wishes to place a bid -
@@ -234,32 +244,32 @@ class BidSniper:
 
         # force an update of the favorites cache,
         # as we don't want to place erronous bids
-        self.update_favorites_cache(0)
+        self.update_favorites_cache(5)
 
         # find the max_bid amount (if present) for this itemId
         favorite = self.favorites_cache["favorites"].get(item_id, None)
         if not favorite:
-            return schedule.CancelJob
+            return None
 
         notes = favorite.get("notes", None)
         if not notes:
-            return schedule.CancelJob
+            return None
 
         try:
             notes_js = json.loads(notes)
         except JSONDecodeError:
             # TODO should this be treated as an error? I don't think so.
-            return schedule.CancelJob
+            return None
 
         max_bid = notes_js.get("max_bid", None)
         if not max_bid:
-            return schedule.CancelJob
+            return None
 
         try:
             max_bid = float(max_bid)
         except ValueError:
             self.logger.error(f"ValueError casting max_bid value '{max_bid}' as float")
-            return schedule.CancelJob
+            return None
 
         # we need the sellerId before placing a bid,
         # which is _only_ available on the item page
@@ -270,7 +280,7 @@ class BidSniper:
             self.logger.error(
                 f"{type(be).__name__} getting info for item ID '{item_id} - {be}"
             )
-            return schedule.CancelJob
+            return None
 
         # Don't try bidding if we can't win
         if max_bid < item_info["minimumBid"]:
@@ -279,7 +289,7 @@ class BidSniper:
                 f"Bid amount {max_bid} for item '{item_info['title']}' "
                 f"below minimum bid price {item_info['minimumBid']}"
             )
-            return schedule.CancelJob
+            return None
 
         # Don't bid if the current highest bidder is on our friend list
         bidder_name = item_info["bidHistory"]["bidSummary"][0]["bidderName"]
@@ -287,13 +297,9 @@ class BidSniper:
             self.logger.info(
                 "Canceling bid due to friendship for item '{item_info['title']}' - current high bidder {bidder_name}"
             )
-            return schedule.CancelJob
+            return None
 
-        # finally place a bid
-        self.logger.warning(
-            f"{self.dry_run_msg}Placing bid on '{item_info['title']}' for {max_bid}"
-        )
-
+        # Finally place a bid
         if not self.dry_run:
             # TODO in the future, address how SGW uses quantity
             # I don't think they use it in auctions
@@ -307,70 +313,94 @@ class BidSniper:
                 self.logger.error(
                     f"HTTPError placing bid on '{item_info['title']}' - {he}"
                 )
-                return schedule.CancelJob
+                return None
 
-        return schedule.CancelJob
-
-    def main_loop(self) -> None:
-        # update favorites
-        self.update_favorites_cache(
-            self.config["bid_sniper"].get("favorites_max_cache_seconds", 60)
+        # only log the message after we've already placed the bid
+        self.logger.warning(
+            f"{self.dry_run_msg}Placing bid on '{item_info['title']}' for {max_bid}"
         )
 
-        for item_id, favorite_info in self.favorites_cache["favorites"].items():
-            # Don't double-schedule tasks
-            if item_id in self.scheduled_tasks:
-                continue
+        return None
 
-            # so close but yet so far away from ISO-8601
-            # SGW simply trims the "PDT" (or PST?) off of the timestamps
-            # TODO validate that the site only uses a single timezone!
-            end_time = (
-                datetime.datetime.fromisoformat(favorite_info["endTime"])
-                .replace(tzinfo=ZoneInfo("US/Pacific"))
-                .astimezone(ZoneInfo("Etc/UTC"))
+    def start(self) -> None:
+        """
+        Simple method to start the bid sniper instance's event loop
+
+        :rtype: None
+        """
+
+        self.event_loop.create_task(self.main_loop())
+        self.event_loop.run_forever()
+
+    async def main_loop(self) -> None:
+        while True:
+            now = datetime.datetime.now(datetime.timezone.utc)
+
+            # update favorites
+            self.update_favorites_cache(
+                self.config["bid_sniper"].get("favorites_max_cache_seconds", 60)
             )
 
-            # schedule reminders for whenever the user configured
-            for alert_time_delta in self.alert_time_deltas:
-                delta_to_event = get_timedelta_to_time(end_time - alert_time_delta)
-
-                # skip events in the past
-                if delta_to_event.days < 0:
+            for item_id, favorite_info in self.favorites_cache["favorites"].items():
+                # Don't double-schedule tasks
+                if item_id in self.scheduled_tasks:
                     continue
 
-                self.logger.debug(
-                    f"Scheduling time alert for item '{favorite_info['title']}' in {delta_to_event}"
-                )
-                schedule.every(round(delta_to_event.total_seconds())).seconds.do(
-                    self.time_alert,
-                    item_id,
-                    end_time,
-                )
-
-            # schedule a tentative max_bid for this item
-            cal = parsedatetime.Calendar()
-            time_delta_str = self.config["bid_sniper"].get(
-                "bid_snipe_time_delta", "30 seconds"
-            )
-            bid_time_delta = (
-                cal.parseDT(time_delta_str, sourceTime=datetime.datetime.min)[0]
-                - datetime.datetime.min
-            )
-            if bid_time_delta == datetime.timedelta(0):
-                self.logger.warning(f"Invalid time delta string '{time_delta_str}'")
-            else:
-
-                delta_to_event = get_timedelta_to_time(end_time - bid_time_delta)
-                self.logger.debug(
-                    f"Scheduling bid for item '{favorite_info['title']}' in {delta_to_event}"
-                )
-                schedule.every(round(delta_to_event.total_seconds())).seconds.do(
-                    self.place_bid, item_id
+                # so close but yet so far away from ISO-8601
+                # SGW simply trims the "PDT" (or PST?) off of the timestamps
+                # TODO validate that the site only uses a single timezone!
+                end_time = (
+                    datetime.datetime.fromisoformat(favorite_info["endTime"])
+                    .replace(tzinfo=ZoneInfo("US/Pacific"))
+                    .astimezone(ZoneInfo("Etc/UTC"))
                 )
 
-            # mark this item ID as "scheduled"
-            self.scheduled_tasks.add(item_id)
+                # schedule reminders for whenever the user configured
+                for alert_time_delta in self.alert_time_deltas:
+                    execution_datetime = end_time - alert_time_delta
+                    # delta_to_event = get_timedelta_to_time(end_time - alert_time_delta)
+
+                    # skip events in the past
+                    if execution_datetime < now:
+                        continue
+
+                    # self.logger.debug(
+                    #     f"Scheduling time alert for item '{favorite_info['title']}' in {delta_to_event}"
+                    # )
+                    self.event_loop.create_task(
+                        self.schedule_task(
+                            self.time_alert(item_id, end_time), execution_datetime
+                        )
+                    )
+
+                # schedule a tentative max_bid for this item
+                cal = parsedatetime.Calendar()
+                time_delta_str = self.config["bid_sniper"].get(
+                    "bid_snipe_time_delta", "30 seconds"
+                )
+                bid_time_delta = (
+                    cal.parseDT(time_delta_str, sourceTime=datetime.datetime.min)[0]
+                    - datetime.datetime.min
+                )
+                if bid_time_delta == datetime.timedelta(0):
+                    self.logger.warning(f"Invalid time delta string '{time_delta_str}'")
+                else:
+
+                    # delta_to_event = get_timedelta_to_time(end_time - bid_time_delta)
+                    # self.logger.debug(
+                    #     f"Scheduling bid for item '{favorite_info['title']}' in {delta_to_event}"
+                    # )
+                    self.event_loop.create_task(
+                        self.schedule_task(
+                            self.place_bid(item_id), end_time - bid_time_delta
+                        )
+                    )
+
+                # mark this item ID as "scheduled"
+                self.logger.debug("Scheduled events for item {favorite_info['title']}")
+                self.scheduled_tasks.add(item_id)
+
+            await asyncio.sleep(self.config["bid_sniper"].get("refresh_seconds", 300))
 
 
 def parse_args():
@@ -399,10 +429,7 @@ def main():
         config = json.load(f)
 
     bid_sniper = BidSniper(config, args.dry_run)
-
-    while True:
-        schedule.run_pending()
-        sleep(1)
+    bid_sniper.start()
 
 
 if __name__ == "__main__":
