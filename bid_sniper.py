@@ -144,10 +144,25 @@ class BidSniper:
             else:
                 self.logger.warning("Invalid time delta string '{time_delta_str}'")
 
+        # bid placing setup
+        bid_time_delta_str = self.config["bid_sniper"].get(
+            "bid_snipe_time_delta", "30 seconds"
+        )
+        self.bid_time_delta = (
+            cal.parseDT(bid_time_delta_str, sourceTime=datetime.datetime.min)[0]
+            - datetime.datetime.min
+        )
+        if self.bid_time_delta == datetime.timedelta(0):
+            self.logger.warning("Invalid time delta string '{time_delta_str}'")
+
+        # TODO I hate this
         self.favorites_cache = {
-            "last_updated": datetime.datetime.min,
+            "last_updated": datetime.datetime.fromisoformat("1970-01-01").astimezone(
+                ZoneInfo("Etc/UTC")
+            ),
             "favorites": list(),
         }
+
         self.scheduled_tasks = (
             set()
         )  # Will contain itemIds tentatively scheduled for actions
@@ -333,13 +348,22 @@ class BidSniper:
         self.event_loop.run_forever()
 
     async def main_loop(self) -> None:
+        refresh_seconds = self.config["bid_sniper"].get("refresh_seconds", 300)
+        favorites_cache_max_seconds = self.config["bid_sniper"].get(
+            "favorites_max_cache_seconds", 60
+        )
+
+        # sort all tasks to schedule (time alerts and bid placing) from "soonest" to "futhest"
+        # once sorted, use the "soonest" delta to determine when to schedule events
+        min_scheduling_timedelta = sorted(
+            self.alert_time_deltas + [self.bid_time_delta]
+        )[::-1][0]
+
         while True:
             now = datetime.datetime.now(datetime.timezone.utc)
 
             # update favorites
-            self.update_favorites_cache(
-                self.config["bid_sniper"].get("favorites_max_cache_seconds", 60)
-            )
+            self.update_favorites_cache(favorites_cache_max_seconds)
 
             for item_id, favorite_info in self.favorites_cache["favorites"].items():
                 # Don't double-schedule tasks
@@ -355,52 +379,40 @@ class BidSniper:
                     .astimezone(ZoneInfo("Etc/UTC"))
                 )
 
-                # schedule reminders for whenever the user configured
-                for alert_time_delta in self.alert_time_deltas:
-                    execution_datetime = end_time - alert_time_delta
-                    # delta_to_event = get_timedelta_to_time(end_time - alert_time_delta)
+                # only schedule tasks for the item if the "nearest" task is within refresh_seconds * 3 seconds
+                # TODO flip this to "if less than, schedule thing"
+                if (end_time - min_scheduling_timedelta) <= now + datetime.timedelta(
+                    seconds=refresh_seconds * 3
+                ):
 
-                    # skip events in the past
-                    if execution_datetime < now:
-                        continue
+                    # schedule reminders for whenever the user configured
+                    for alert_time_delta in self.alert_time_deltas:
+                        execution_datetime = end_time - alert_time_delta
 
-                    # self.logger.debug(
-                    #     f"Scheduling time alert for item '{favorite_info['title']}' in {delta_to_event}"
-                    # )
+                        # skip events in the past
+                        if execution_datetime < now:
+                            continue
+
+                        self.event_loop.create_task(
+                            self.schedule_task(
+                                self.time_alert(item_id, end_time), execution_datetime
+                            )
+                        )
+
+                    # schedule a tentative max_bid for this item
                     self.event_loop.create_task(
                         self.schedule_task(
-                            self.time_alert(item_id, end_time), execution_datetime
+                            self.place_bid(item_id), end_time - self.bid_time_delta
                         )
                     )
 
-                # schedule a tentative max_bid for this item
-                cal = parsedatetime.Calendar()
-                time_delta_str = self.config["bid_sniper"].get(
-                    "bid_snipe_time_delta", "30 seconds"
-                )
-                bid_time_delta = (
-                    cal.parseDT(time_delta_str, sourceTime=datetime.datetime.min)[0]
-                    - datetime.datetime.min
-                )
-                if bid_time_delta == datetime.timedelta(0):
-                    self.logger.warning(f"Invalid time delta string '{time_delta_str}'")
-                else:
-
-                    # delta_to_event = get_timedelta_to_time(end_time - bid_time_delta)
-                    # self.logger.debug(
-                    #     f"Scheduling bid for item '{favorite_info['title']}' in {delta_to_event}"
-                    # )
-                    self.event_loop.create_task(
-                        self.schedule_task(
-                            self.place_bid(item_id), end_time - bid_time_delta
-                        )
+                    # mark this item ID as "scheduled"
+                    self.logger.debug(
+                        f"Scheduled events for item {favorite_info['title']}"
                     )
+                    self.scheduled_tasks.add(item_id)
 
-                # mark this item ID as "scheduled"
-                self.logger.debug("Scheduled events for item {favorite_info['title']}")
-                self.scheduled_tasks.add(item_id)
-
-            await asyncio.sleep(self.config["bid_sniper"].get("refresh_seconds", 300))
+            await asyncio.sleep(refresh_seconds)
 
 
 def parse_args():
