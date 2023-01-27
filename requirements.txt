@@ -3,5 +3,4 @@ parsedatetime
 pycryptodome
 python-daemon
 requests
-schedule
 tzdata
