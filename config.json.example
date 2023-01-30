@@ -3,15 +3,20 @@
         "log_level": 20,
         "gotify": {
             "app_token": "",
-            "server_url": ""
+            "server_url": "",
+            "extras": {
+                "client::display": {
+                    "contentType": "text/markdown"
+                }
+            }
         }
     },
     "auth_info": {
         "access_token": "",
-        "encrypted_username": ""
+        "encrypted_username": "",
         "encrypted_password": "",
-        "username": ""
-        "password": "",
+        "username": "",
+        "password": ""
     },
     "bid_sniper": {
         "refresh_seconds": 300,

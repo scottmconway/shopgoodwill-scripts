@@ -231,6 +231,11 @@ def main():
         "If `saved_searches` is selected, "
         "Shopgoodwill credentials are required in the configuration file",
     )
+    parser.add_argument(
+        "--markdown",
+        action="store_true",
+        help="If set, log URLs in markdown format (for gotify)",
+    )
     args = parser.parse_args()
 
     with open("config.json", "r") as f:
@@ -340,13 +345,24 @@ def main():
                 "",
             ]
             for alert in alert_queue:
-                alert_lines = [
-                    alert["title"] + ":",
-                    alert["minimumBid"],
-                    alert["endTime"],
-                    alert["url"],
-                    "",
-                ]
+                if args.markdown:
+                    alert_lines = [
+                        f"[{alert['title']}]({alert['url']}):",
+                        "",
+                        alert["minimumBid"],
+                        "",
+                        alert["endTime"],
+                        "",
+                    ]
+
+                else:
+                    alert_lines = [
+                        alert["title"] + ":",
+                        alert["minimumBid"],
+                        alert["endTime"],
+                        alert["url"],
+                        "",
+                    ]
                 formatted_msg_lines.extend(alert_lines)
 
             logger.info("\n".join(formatted_msg_lines))
