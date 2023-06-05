@@ -185,7 +185,6 @@ class Shopgoodwill:
         return inner
 
     def login(self, username: str, password: str):
-
         # I don't know how they set clientIpAddress or appVersion,
         # I just nabbed these from my browsers' requests
         login_params = {

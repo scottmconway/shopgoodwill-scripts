@@ -307,12 +307,13 @@ class BidSniper:
             return None
 
         # Don't bid if the current highest bidder is on our friend list
-        bidder_name = item_info["bidHistory"]["bidSummary"][0]["bidderName"]
-        if bidder_name in self.config.get("friend_list", list()):
-            self.logger.info(
-                "Canceling bid due to friendship for item '{item_info['title']}' - current high bidder {bidder_name}"
-            )
-            return None
+        if item_info["bidHistory"].get("bidSummary", list()):
+            bidder_name = item_info["bidHistory"]["bidSummary"][0]["bidderName"]
+            if bidder_name in self.config.get("friend_list", list()):
+                self.logger.info(
+                    "Canceling bid due to friendship for item '{item_info['title']}' - current high bidder {bidder_name}"
+                )
+                return None
 
         # Finally place a bid
         if not self.dry_run:
@@ -384,7 +385,6 @@ class BidSniper:
                 if (end_time - min_scheduling_timedelta) <= now + datetime.timedelta(
                     seconds=refresh_seconds * 3
                 ):
-
                     # schedule reminders for whenever the user configured
                     for alert_time_delta in self.alert_time_deltas:
                         execution_datetime = end_time - alert_time_delta
