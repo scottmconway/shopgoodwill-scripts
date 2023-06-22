@@ -8,7 +8,7 @@ import logging
 import queue
 from json.decoder import JSONDecodeError
 from logging.handlers import QueueHandler, QueueListener
-from typing import Dict, Optional
+from typing import Any, Callable, Dict, Iterable, Optional
 from zoneinfo import ZoneInfo
 
 import parsedatetime
@@ -196,8 +196,26 @@ class BidSniper:
                         f"{type(be).__name__} updating favorites cache - {be}"
                     )
 
+    def task_err_handler(self, finished_task: asyncio.Task) -> None:
+        """
+        Simple Task callback function to log exceptions from tasks, if present
+
+        :param finished_task:
+        :type finished_task: asyncio.Task
+        :rtype: None
+        """
+
+        coro_exception = finished_task.exception()
+        if coro_exception:
+            self.logger.error(
+                f'Exception in coroutine "{getattr(finished_task.get_coro(), "__name__", "null")}" - {type(coro_exception).__name__} - {coro_exception}'
+            )
+
     async def schedule_task(
-        self, coroutine, execution_datetime: datetime.datetime
+        self,
+        coroutine,
+        execution_datetime: datetime.datetime,
+        callbacks: Optional[Iterable[Callable[[asyncio.Task], Any]]] = None,
     ) -> None:
         """
         Simple function to delay a coroutine's execution
@@ -206,12 +224,20 @@ class BidSniper:
         :param coroutine: The coroutine to execute at execution_datetime
         :param execution_datetime: A timezone-aware datetime
         :type execution_datetime: datetime.datetime
+        :param callbacks: If specified, an iterable of callback functions
+            to be applied to the task to schedule
+        :type callbacks: Optional[Iterable[Callable[[asyncio.Task], Any]]]
         :rtype: None
         """
 
         now = datetime.datetime.now(datetime.timezone.utc)
         await asyncio.sleep((execution_datetime - now).total_seconds())
-        self.event_loop.create_task(coroutine)
+        task = self.event_loop.create_task(coroutine)
+
+        if callbacks:
+            for callback in callbacks:
+                task.add_done_callback(callback)
+                callbacks = [self.task_err_handler]
 
     async def time_alert(self, item_id: int, end_time: datetime.datetime) -> None:
         """
@@ -395,16 +421,20 @@ class BidSniper:
 
                         self.event_loop.create_task(
                             self.schedule_task(
-                                self.time_alert(item_id, end_time), execution_datetime
+                                self.time_alert(item_id, end_time),
+                                execution_datetime,
+                                [self.task_err_handler],
                             )
-                        )
+                        ).add_done_callback(self.task_err_handler)
 
                     # schedule a tentative max_bid for this item
                     self.event_loop.create_task(
                         self.schedule_task(
-                            self.place_bid(item_id), end_time - self.bid_time_delta
+                            self.place_bid(item_id),
+                            end_time - self.bid_time_delta,
+                            [self.task_err_handler],
                         )
-                    )
+                    ).add_done_callback(self.task_err_handler)
 
                     # mark this item ID as "scheduled"
                     self.logger.debug(
