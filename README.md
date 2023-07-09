@@ -125,6 +125,8 @@ Further improvements to come!
 |N/A|`--all`|`bool`|If set, execute all queries under the configured data source|
 |`-l`|`--list-queries`|`bool`|If set, list all queries that can be executed by this data source and exit|
 |`-d`|`--data-source`|`str`|Either `local` or `saved_searches`. The former reads query JSONs from the config file's `saved_queries` section. The latter reads from a ShopGoodwill account's "Saved Searches"|
+|N/A|`--markdown`|`bool`|If set, log URLs in markdown format (for gotify)|
+|N/A|`--config`|`str`|Path to config file - defaults to ./config.json|
 
 #### Query Generation
 The easiest way to generate a query JSON is to make an [Advanced Search](https://shopgoodwill.com/search/advancedsearch) on ShopGoodwill. Simply craft the query you'd like, open the network console, and click the search button. The XHR POST request to `https://buyerapi.shopgoodwill.com/api/Search/ItemListing` contains the JSON that you're looking for.

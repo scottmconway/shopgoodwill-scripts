@@ -236,9 +236,15 @@ def main():
         action="store_true",
         help="If set, log URLs in markdown format (for gotify)",
     )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config.json",
+        help="Path to config file - defaults to ./config.json",
+    )
     args = parser.parse_args()
 
-    with open("config.json", "r") as f:
+    with open(args.config, "r") as f:
         config = json.load(f)
 
     # logging setup
