@@ -88,6 +88,9 @@ class BidSniper:
 
         self.outage_start_time = None
 
+        # if set, the default note to assign favorites that don't have a note
+        self.default_note = self.config["bid_sniper"].get("favorite_default_note", None)
+
         # logging setup
         self.logger = logging.getLogger("shopgoodwill_bid_sniper")
         logging.basicConfig()
@@ -441,6 +444,12 @@ class BidSniper:
                         f"Scheduled events for item {favorite_info['title']}"
                     )
                     self.scheduled_tasks.add(item_id)
+
+                # if configured, set notes for entries that do not have notes
+                if self.default_note and not favorite_info.get("notes", ""):
+                    self.shopgoodwill_client.add_favorite(
+                        item_id, note=self.default_note
+                    )
 
             await asyncio.sleep(refresh_seconds)
 
