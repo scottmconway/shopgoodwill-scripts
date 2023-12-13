@@ -31,7 +31,7 @@
             "1 minute",
             "30 seconds"
         ],
-        "favorite_default_note": "{max_bid: 0.99}"
+        "favorite_default_note": "{\"max_bid\": 0.99}"
     },
     "seen_listings_filename": "seen_listings.json",
     "saved_queries": {

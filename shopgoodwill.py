@@ -6,8 +6,8 @@ from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 import requests
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
+from Cryptodome.Cipher import AES
+from Cryptodome.Util.Padding import pad
 from requests.exceptions import HTTPError
 from requests.models import PreparedRequest, Response
 
