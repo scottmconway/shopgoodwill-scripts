@@ -1,6 +1,6 @@
 gotify-handler
 parsedatetime
-pycryptodome
+pycryptodomex
 python-daemon
 requests
 tzdata
