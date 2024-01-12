@@ -61,8 +61,7 @@ If you're interested in why I have quotes around "encryption", check out [my blo
 Anyway, to find the "encrypted" variants of these parameters, fire up your browser of choice, open the network monitor, and log in to the service. The `POST` request to `https://buyerapi.shopgoodwill.com/api/SignIn/Login` will contain the values that you're looking for. Those values should be stored in the `encrypted_username` and `encrypted_password` fields.
 
 ### `logging`
-`log_level` - sets the log level to subscribe to
-`gotify` - only required if you wish to use gotify as a logging destination
+The contents of this section are passed directly to `logging.config`'s `dictConfig` intializer. See [logging's documentation](https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig) for what information can be provided here. The example config contains a single gotifyHandler instance for logging alerts from both `bid_sniper` and `alert_on_new_query_results`. 
 
 ### `seen_listings_filename`
 This is the path of the file that will have "seen" listings written to, so we can track "new" ones. This is used by `alert_on_new_query_results.py`, and should probably be moved elsewhere.

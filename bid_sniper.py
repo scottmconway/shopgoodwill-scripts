@@ -5,6 +5,7 @@ import asyncio
 import datetime
 import json
 import logging
+import logging.config
 import queue
 from json.decoder import JSONDecodeError
 from logging.handlers import QueueHandler, QueueListener
@@ -92,22 +93,29 @@ class BidSniper:
         self.default_note = self.config["bid_sniper"].get("favorite_default_note", None)
 
         # logging setup
-        self.logger = logging.getLogger("shopgoodwill_bid_sniper")
-        logging.basicConfig()
         logging_conf = config.get("logging", dict())
-        self.logger.setLevel(logging_conf.get("log_level", logging.INFO))
+        self.logger = logging.getLogger("shopgoodwill_bid_sniper")
+        # check if we're using logging.config.dictConfig or not
+        #
+        # load entire logging config from dictConfig format
+        if logging_conf.get("version", 0) >= 1:
+            logging.config.dictConfig(logging_conf)
 
-        log_queue = queue.Queue()
-        queue_handler = QueueHandler(log_queue)
+        # legacy logging config format
+        else:
+            logging.basicConfig()
+            self.logger.setLevel(logging_conf.get("log_level", logging.INFO))
+            log_queue = queue.Queue()
+            queue_handler = QueueHandler(log_queue)
 
-        if "gotify" in logging_conf:
-            from gotify_handler import GotifyHandler
+            if "gotify" in logging_conf:
+                from gotify_handler import GotifyHandler
 
-            queue_listener = QueueListener(
-                log_queue, GotifyHandler(**logging_conf["gotify"])
-            )
-            self.logger.addHandler(queue_handler)
-            queue_listener.start()
+                queue_listener = QueueListener(
+                    log_queue, GotifyHandler(**logging_conf["gotify"])
+                )
+                self.logger.addHandler(queue_handler)
+                queue_listener.start()
 
         # TODO since this is a daemon,
         # we'll actually have to bother refreshing the token!

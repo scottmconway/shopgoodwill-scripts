@@ -4,6 +4,7 @@ import argparse
 import datetime
 import json
 import logging
+import logging.config
 import os
 import re
 from typing import Dict, List
@@ -250,11 +251,20 @@ def main():
     # logging setup
     logger = logging.getLogger("shopgoodwill_alert_on_new_query_results")
     logging_conf = config.get("logging", dict())
-    logger.setLevel(logging_conf.get("log_level", logging.INFO))
-    if "gotify" in logging_conf:
-        from gotify_handler import GotifyHandler
 
-        logger.addHandler(GotifyHandler(**logging_conf["gotify"]))
+    # check if we're using logging.config.dictConfig or not
+    #
+    # load entire logging config from dictConfig format
+    if logging_conf.get("version", 0) >= 1:
+        logging.config.dictConfig(logging_conf)
+
+    # legacy logging config format
+    else:
+        logger.setLevel(logging_conf.get("log_level", logging.INFO))
+        if "gotify" in logging_conf:
+            from gotify_handler import GotifyHandler
+
+            logger.addHandler(GotifyHandler(**logging_conf["gotify"]))
 
     # data source setup
     if args.data_source == "saved_searches":
