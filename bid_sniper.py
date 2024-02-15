@@ -166,12 +166,9 @@ class BidSniper:
         if self.bid_time_delta == datetime.timedelta(0):
             self.logger.warning("Invalid time delta string '{time_delta_str}'")
 
-        # TODO I hate this
         self.favorites_cache = {
-            "last_updated": datetime.datetime.fromisoformat("1970-01-01").astimezone(
-                ZoneInfo("Etc/UTC")
-            ),
-            "favorites": list(),
+            "last_updated": datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc),
+            "favorites": dict(),
         }
 
         self.scheduled_tasks = (
