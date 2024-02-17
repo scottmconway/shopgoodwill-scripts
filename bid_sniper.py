@@ -135,12 +135,8 @@ class BidSniper:
             self.bid_shopgoodwill_client = self.shopgoodwill_client
 
         # modify the hooks for our shopgoodwill sessions
-        self.shopgoodwill_client.shopgoodwill_session.hooks[
-            'response'
-        ] = self.outage_check_hook
-        self.bid_shopgoodwill_client.shopgoodwill_session.hooks[
-            'response'
-        ] = self.outage_check_hook
+        self.shopgoodwill_client.session.hooks['response'] = self.outage_check_hook
+        self.bid_shopgoodwill_client.session.hooks['response'] = self.outage_check_hook
 
         # custom time alerting setup
         self.alert_time_deltas = list()

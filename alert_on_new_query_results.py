@@ -10,9 +10,12 @@ import re
 from typing import Dict, List
 from zoneinfo import ZoneInfo
 
+import coloredlogs
 import parsedatetime
 
 import shopgoodwill
+
+LOG = logging.getLogger(__name__)
 
 RELEVANT_LISTING_KEYS = [
     'buyNowPrice',
@@ -206,47 +209,7 @@ def filter_listings(
     return final_listings
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-q', '--query-name', type=str, help='The name of the query to execute'
-    )
-    parser.add_argument(
-        '--all',
-        action='store_true',
-        help='If set, execute all queries for the configured data source',
-    )
-    parser.add_argument(
-        '-l',
-        '--list-queries',
-        action='store_true',
-        help='If set, list all queries that can be executed '
-        'for the current data source and exit',
-    )
-    parser.add_argument(
-        '-d',
-        '--data-source',
-        choices=['local', 'saved_searches'],
-        default='local',
-        help='Data source for this query. '
-        'If `saved_searches` is selected, '
-        'Shopgoodwill credentials are required in the configuration file',
-    )
-    parser.add_argument(
-        '--markdown',
-        action='store_true',
-        help='If set, log URLs in markdown format (for gotify)',
-    )
-    parser.add_argument(
-        '--config',
-        type=str,
-        default='config.json',
-        help='Path to config file - defaults to ./config.json',
-    )
-    args = parser.parse_args()
-
-    with open(args.config) as f:
-        config = json.load(f)
+def init_logging(config):
 
     # logging setup
     logger = logging.getLogger('shopgoodwill_alert_on_new_query_results')
@@ -265,6 +228,59 @@ def main():
             from gotify_handler import GotifyHandler
 
             logger.addHandler(GotifyHandler(**logging_conf['gotify']))
+
+
+def command_line_args():
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        '-q', '--query-name', type=str, help='The name of the query to execute'
+    )
+    p.add_argument(
+        '--all',
+        action='store_true',
+        help='If set, execute all queries for the configured data source',
+    )
+    p.add_argument(
+        '-l',
+        '--list-queries',
+        action='store_true',
+        help='If set, list all queries that can be executed '
+        'for the current data source and exit',
+    )
+    p.add_argument(
+        '-d',
+        '--data-source',
+        choices=['local', 'saved_searches'],
+        default='local',
+        help='Data source for this query. '
+        'If `saved_searches` is selected, '
+        'Shopgoodwill credentials are required in the configuration file',
+    )
+    p.add_argument(
+        '--markdown',
+        action='store_true',
+        help='If set, log URLs in markdown format (for gotify)',
+    )
+    p.add_argument(
+        '--config',
+        type=str,
+        default='config.json',
+        help='Path to config file - defaults to ./config.json',
+    )
+    p.add_argument('--debug', action='store_true', help='verbose logging')
+    return p.parse_args()
+
+
+def main():
+    args = command_line_args()
+
+    with open(args.config) as f:
+        config = json.load(f)
+
+    init_logging(config)
+    if args.debug:
+        logging.getLogger().setLevel(level=logging.DEBUG)
+        coloredlogs.install(level=logging.DEBUG)
 
     # data source setup
     if args.data_source == 'saved_searches':
@@ -311,7 +327,7 @@ def main():
         # if the user has an old seen_listings file,
         # delete all entries (and let them know about it)
         if not isinstance(seen_listings, dict):
-            logger.warning(
+            LOG.warning(
                 'Deprecated seen_listings file format detected - '
                 'clearing existing seen_listings'
             )
@@ -320,7 +336,8 @@ def main():
         seen_listings = dict()
 
     if not args.all and args.query_name not in saved_queries:
-        logger.error(f'Invalid query_name "{args.query_name}" - exiting')
+        print(saved_queries)
+        LOG.error(f'Invalid query_name "{args.query_name}" - exiting')
         exit(1)
 
     if args.all:
@@ -381,7 +398,7 @@ def main():
                     ]
                 formatted_msg_lines.extend(alert_lines)
 
-            logger.info('\n'.join(formatted_msg_lines))
+            LOG.info('\n'.join(formatted_msg_lines))
 
     # save new results of seen listings
 

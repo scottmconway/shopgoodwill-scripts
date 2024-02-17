@@ -1,5 +1,7 @@
+import logging
 import base64
 import datetime
+import os
 import re
 import urllib.parse
 from typing import Dict, List, Optional
@@ -16,6 +18,8 @@ from requests.models import PreparedRequest, Response
 _SHIPPING_COST_PATTERN = re.compile(
     r"Shipping: <span id='shipping-span'>\$(\d+\.\d+) \(.*\)<\/span>"
 )
+
+LOG = logging.getLogger(__name__)
 
 
 class Shopgoodwill:
@@ -53,43 +57,61 @@ class Shopgoodwill:
         # Maybe try getting another predefined page that requires login
         # eg. profile info
 
-    def __init__(self, auth_info: Optional[Dict] = None):
-        self.shopgoodwill_session = requests.Session()
+    def __init__(self, auth_info: Optional[Dict] = {}):
+        self.session = requests.Session()
 
         # SGW doesn't take kindly to the default requests user-agent
-        self.shopgoodwill_session.headers = {
+        self.session.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0'
         }
-        self.shopgoodwill_session.hooks['response'] = self.shopgoodwill_err_hook
-        self.logged_in = False
+        self.session.hooks['response'] = self.shopgoodwill_err_hook
 
-        if auth_info:
-            # check if auth token exists, and if it works
-            access_token = auth_info.get('access_token', None)
-            if access_token and self.access_token_is_valid(access_token):
-                self.shopgoodwill_session.headers[
-                    'Authorization'
-                ] = f'Bearer {access_token}'
+        self.authenticated = False
 
-            else:
-                if (
-                    'encrypted_username' in auth_info
-                    and 'encrypted_password' in auth_info
-                ):
-                    self.login(
-                        auth_info['encrypted_username'], auth_info['encrypted_password']
-                    )
+        # NOTE: OS environment variables for authentication always takes
+        # precedence over the config file; useful especially when tools
+        # are run in a Docker environment
+        for auth_method in [
+            self._attempt_token_authentication,
+            self._attempt_encrypted_username_login,
+            self._attempt_plaintext_login,
+        ]:
+            self.authenticated = auth_method(auth_info)
+            LOG.debug(f'{auth_method} -> {self.authenticated}')
+            if self.authenticated:
+                break
 
-                elif 'username' in auth_info and 'password' in auth_info:
-                    self.login(
-                        self._encrypt_login_value(auth_info['username']),
-                        self._encrypt_login_value(auth_info['password']),
-                    )
+        if not self.authenticated:
+            raise Exception('Invalid authentication credentials or auth_info provided!')
 
-                else:
-                    raise Exception('Invalid auth_info provided!')
+    def _attempt_token_authentication(self, auth_info: Dict) -> bool:
+        if access_token := os.getenv(
+            'SHOPGOODWILL_ACCESS_TOKEN', auth_info.get('access_token')
+        ):
+            LOG.warning('Attempting auth with access_token')
+            if self.access_token_is_valid(access_token):
+                self.session.headers['Authorization'] = f'Bearer {access_token}'
+                return True
+        return False
 
-            self.logged_in = True
+    def _attempt_encrypted_username_login(self, auth_info: Dict) -> bool:
+        # NOTE: should the wacky encrypted variation even be encouraged?
+        if encrypted_username := auth_info.get('encrypted_username'):
+            if encrypted_password := auth_info.get('encrypted_password'):
+                self.login(encrypted_username, encrypted_password)
+                return True
+        return False
+
+    def _attempt_plaintext_login(self, auth_info: Dict) -> bool:
+        if username := os.getenv('SHOPGOODWILL_USERNAME', auth_info.get('username')):
+            if password := os.getenv(
+                'SHOPGOODWILL_PASSWORD', auth_info.get('password')
+            ):
+                LOG.info(f'Attempting auth with username={username}')
+                auth_info['encrypted_username'] = self._encrypt_login_value(username)
+                auth_info['encrypted_password'] = self._encrypt_login_value(password)
+                return self._attempt_encrypted_username_login(auth_info)
+        return False
 
     def convert_timestamp_to_datetime(self, sgw_timestamp: str) -> datetime.datetime:
         """
@@ -103,9 +125,7 @@ class Shopgoodwill:
         :rtype: datetime.datetime
         """
 
-        # if there are any milliseconds in this timestamp,
-        # truncate it
-
+        # if there are any milliseconds in this timestamp, truncate
         if '.' in sgw_timestamp:
             sgw_timestamp = sgw_timestamp[: sgw_timestamp.find('.')]
 
@@ -142,45 +162,35 @@ class Shopgoodwill:
         Simple function to test an access token
         by looking at the user's saved searches
         """
-
-        # if access_token is None:
-        #    return False
-
-        # temporarily set access token and "logged_in" status to test it
-        self.logged_in = True
-        self.shopgoodwill_session.headers['Authorization'] = f'Bearer {access_token}'
-
+        token_is_valid = False
         try:
-            res = self.shopgoodwill_session.post(
-                Shopgoodwill.API_ROOT + '/SaveSearches/GetSaveSearches'
-            )
+            # temporarily set access token and "logged_in" status to test it
+            self.authenticated = True
 
+            self.session.headers['Authorization'] = f'Bearer {access_token}'
+            self.session.post(Shopgoodwill.API_ROOT + '/SaveSearches/GetSaveSearches')
         except HTTPError as he:
-            if he.response.status_code == 401:
-                self.logged_in = False
-                del self.shopgoodwill_session.headers['Authorization']
-
-                return False
-
-            else:
-                self.logged_in = False
-                del self.shopgoodwill_session.headers['Authorization']
+            if he.response.status_code != 401:
                 raise he
+        except Exception as e:
+            raise e
+        else:
+            token_is_valid = True
+        finally:
+            del self.session.headers['Authorization']
+            self.authenticated = False
 
-        self.logged_in = False
-        del self.shopgoodwill_session.headers['Authorization']
-        return True
+        return token_is_valid
 
     def requires_auth(func):
         """
-        Simple decorator to raise an exception if an endpoint requiring login
-        is called without valid auth
+        Simple decorator that raises an exception if an endpoint requiring login
+        is called without valid authentication.
         """
 
         def inner(self, *args, **kwargs):
-            if not self.logged_in:
-                raise Exception('This function requires login to Shopgoodwill')
-
+            if not self.authenticated:
+                raise Exception('This function requires authentication to Shopgoodwill')
             return func(self, *args, **kwargs)
 
         return inner
@@ -199,32 +209,28 @@ class Shopgoodwill:
 
         # Temporarily drop the requests hook
         # so we can add the set-cookies from this HTML page
-        self.shopgoodwill_session.hooks['response'] = None
+        self.session.hooks['response'] = None
 
         # TODO we should still check for exceptions here
-        self.shopgoodwill_session.get(Shopgoodwill.LOGIN_PAGE_URL)
+        self.session.get(Shopgoodwill.LOGIN_PAGE_URL)
 
-        self.shopgoodwill_session.hooks['response'] = self.shopgoodwill_err_hook
+        self.session.hooks['response'] = self.shopgoodwill_err_hook
 
-        res_json = self.shopgoodwill_session.post(
+        res_json = self.session.post(
             Shopgoodwill.API_ROOT + '/SignIn/Login', json=login_params
         ).json()
 
         if res_json['message'] == Shopgoodwill.INVALID_AUTH_MESSAGE:
             raise Exception('Invalid credentials')
 
-        self.shopgoodwill_session.headers[
-            'Authorization'
-        ] = f"Bearer {res_json['accessToken']}"
+        self.session.headers['Authorization'] = f"Bearer {res_json['accessToken']}"
         # TODO deal with refresh token
 
         return True
 
     @requires_auth
     def get_saved_searches(self):
-        res = self.shopgoodwill_session.post(
-            Shopgoodwill.API_ROOT + '/SaveSearches/GetSaveSearches'
-        )
+        res = self.session.post(Shopgoodwill.API_ROOT + '/SaveSearches/GetSaveSearches')
         return res.json()['data']
 
     @requires_auth
@@ -250,20 +256,17 @@ class Shopgoodwill:
         # TODO should this default to all?
         # we just don't care about closed listings
 
-        res = self.shopgoodwill_session.post(
+        res = self.session.post(
             Shopgoodwill.API_ROOT + '/Favorite/GetAllFavoriteItemsByType',
             params={'Type': favorite_type},
             json={},
         )
-        favorites = res.json()['data']
         parsed_favorites = dict()
 
         # It'd be nice if their formatting was consistent
-        if favorites is None:
-            favorites = list()
-
-        for favorite in favorites:
-            parsed_favorites[int(favorite['itemId'])] = favorite
+        if favorites := res.json()['data']:
+            for favorite in favorites:
+                parsed_favorites[int(favorite['itemId'])] = favorite
 
         return parsed_favorites
 
@@ -281,7 +284,7 @@ class Shopgoodwill:
         :rtype: None
         """
 
-        self.shopgoodwill_session.get(
+        self.session.get(
             f'{Shopgoodwill.API_ROOT}/Favorite/AddToFavorite',
             params={'itemId': item_id},
         )
@@ -303,7 +306,9 @@ class Shopgoodwill:
         """
 
         if len(note) > Shopgoodwill.FAVORITES_MAX_NOTE_LENGTH:
-            # TODO add a logger and log a warning here
+            LOG.warning(
+                f"Truncating note '{note}' to {Shopgoodwill.FAVORITES_MAX_NOTE_LENGTH} chars"
+            )
             note = note[:256]
 
         favorites = self.get_favorites()
@@ -313,7 +318,7 @@ class Shopgoodwill:
         watchlist_id = favorites[item_id]['watchlistId']
 
         # note that the webapp passes a "date" value, but it is not necessary
-        self.shopgoodwill_session.post(
+        self.session.post(
             f'{Shopgoodwill.API_ROOT}/Favorite/Save',
             json={'notes': note, 'watchlistId': watchlist_id},
         )
@@ -328,7 +333,7 @@ class Shopgoodwill:
             'sellerId': seller_id,
             'quantity': quantity,
         }
-        bid_res = self.shopgoodwill_session.post(
+        response = self.session.post(
             f'{Shopgoodwill.API_ROOT}/ItemBid/PlaceBid', json=bid_json
         ).json()
 
@@ -362,7 +367,7 @@ class Shopgoodwill:
         :rtype: Dict
         """
 
-        return self.shopgoodwill_session.get(
+        return self.session.get(
             f'{Shopgoodwill.API_ROOT}/itemDetail/GetItemDetailModelByItemId/{item_id}'
         ).json()
 
@@ -384,7 +389,7 @@ class Shopgoodwill:
         :rtype: Dict
         """
 
-        return self.shopgoodwill_session.get(
+        return self.session.get(
             f'{Shopgoodwill.API_ROOT}/itemBid/ShowBidModal', params={'itemId': item_id}
         ).json()
 
@@ -396,6 +401,8 @@ class Shopgoodwill:
 
         :param query_json: A valid Shopgoodwill query JSON
         :type query_json: Dict
+        :param page_size: Page size
+        :type page_size: Optional[int]
         :return: A list of query results across all valid result pages
         :rtype: List[Dict]
         """
@@ -405,30 +412,26 @@ class Shopgoodwill:
         total_listings = list()
 
         while True:
-            query_res = self.shopgoodwill_session.post(
+            response = self.session.post(
                 Shopgoodwill.API_ROOT + '/Search/ItemListing', json=query_json
             )
-            page_listings = query_res.json()['searchResults']['items']
 
             # err check
             # see https://github.com/scottmconway/shopgoodwill-scripts/issues/12
-            if query_res.json().get('categoryListModel', None) is None:
+            if response.json().get('categoryListModel', None) is None:
                 raise Exception('Error response from query endpoint')
 
-            # break if this page is empty
-            if not page_listings:
-                return total_listings
-
-            else:
+            search_results = response.json()['searchResults']
+            if page_listings := search_results['items']:
                 query_json['page'] += 1
                 total_listings += page_listings
+            else:
+                # break if this page is empty
+                return total_listings
 
-                # break if we've seen all that we expect to see
-                if (
-                    len(total_listings)
-                    == query_res.json()['searchResults']['itemCount']
-                ):
-                    return total_listings
+            # break if we've seen all that we expect to see
+            if len(total_listings) == search_results['itemCount']:
+                return total_listings
 
     def get_item_shipping_estimate(
         self, item_id: int, zip_code: str
@@ -446,7 +449,7 @@ class Shopgoodwill:
         :rtype: float
         """
 
-        resp = self.shopgoodwill_session.post(
+        resp = self.session.post(
             f'{Shopgoodwill.API_ROOT}/itemDetail/CalculateShipping',
             json={
                 'itemId': item_id,
