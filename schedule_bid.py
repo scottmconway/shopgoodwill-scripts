@@ -9,20 +9,20 @@ import shopgoodwill
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'item_id',
+        "item_id",
         type=int,
-        help='The item ID for which to schedule a bid',
+        help="The item ID for which to schedule a bid",
     )
     parser.add_argument(
-        'bid_amount',
+        "bid_amount",
         type=float,
-        help='The max bid amount to submit',
+        help="The max bid amount to submit",
     )
     parser.add_argument(
-        '--config',
+        "--config",
         type=str,
-        default='config.json',
-        help='Path to config file - defaults to ./config.json',
+        default="config.json",
+        help="Path to config file - defaults to ./config.json",
     )
     return parser.parse_args()
 
@@ -32,19 +32,19 @@ def main():
     with open(args.config) as f:
         config = json.load(f)
 
-    bid_note_json = {'max_bid': float(args.bid_amount)}
+    bid_note_json = {"max_bid": float(args.bid_amount)}
 
     # init the command account
-    if config['auth_info'].get('auth_type', 'universal') == 'command_bid':
+    if config["auth_info"].get("auth_type", "universal") == "command_bid":
         shopgoodwill_client = shopgoodwill.Shopgoodwill(
-            config['auth_info']['command_account']
+            config["auth_info"]["command_account"]
         )
     else:
-        shopgoodwill_client = shopgoodwill.Shopgoodwill(config['auth_info'])
+        shopgoodwill_client = shopgoodwill.Shopgoodwill(config["auth_info"])
 
     # if the item is already favorited, it'll still work
     shopgoodwill_client.add_favorite(int(args.item_id), note=json.dumps(bid_note_json))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
