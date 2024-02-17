@@ -335,7 +335,6 @@ def main():
         seen_listings = dict()
 
     if not args.all and args.query_name not in saved_queries:
-        print(saved_queries)
         LOG.error(f'Invalid query_name "{args.query_name}" - exiting')
         exit(1)
 
