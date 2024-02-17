@@ -24,14 +24,12 @@ def parse_args():
         default="config.json",
         help="Path to config file - defaults to ./config.json",
     )
-    args = parser.parse_args()
-
-    return args
+    return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    with open(args.config, "r") as f:
+    with open(args.config) as f:
         config = json.load(f)
 
     bid_note_json = {"max_bid": float(args.bid_amount)}

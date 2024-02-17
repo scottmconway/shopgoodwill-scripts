@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
+import logging
 import argparse
 import asyncio
 import datetime
 import json
-import logging
 import logging.config
 import queue
 from json.decoder import JSONDecodeError
@@ -135,12 +135,8 @@ class BidSniper:
             self.bid_shopgoodwill_client = self.shopgoodwill_client
 
         # modify the hooks for our shopgoodwill sessions
-        self.shopgoodwill_client.shopgoodwill_session.hooks[
-            "response"
-        ] = self.outage_check_hook
-        self.bid_shopgoodwill_client.shopgoodwill_session.hooks[
-            "response"
-        ] = self.outage_check_hook
+        self.shopgoodwill_client.session.hooks["response"] = self.outage_check_hook
+        self.bid_shopgoodwill_client.session.hooks["response"] = self.outage_check_hook
 
         # custom time alerting setup
         self.alert_time_deltas = list()
@@ -481,7 +477,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    with open(args.config, "r") as f:
+    with open(args.config) as f:
         config = json.load(f)
 
     bid_sniper = BidSniper(config, args.dry_run)

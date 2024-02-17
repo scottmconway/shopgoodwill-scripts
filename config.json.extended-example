@@ -1,4 +1,30 @@
 {
+    "logging": {
+        "version": 1,
+        "handlers": {
+            "gotifyHandler": {
+                "class": "gotify_handler.GotifyHandler",
+                "level": "INFO",
+                "app_token": "",
+                "server_url": "https://gotify.example.com",
+                "extras": {
+                    "client::display": {
+                        "contentType": "text/markdown"
+                    }
+                }
+            }
+        },
+        "loggers": {
+            "shopgoodwill_alert_on_new_query_results": {
+                "handlers": ["gotifyHandler"],
+                "level": "INFO"
+            },
+            "shopgoodwill_bid_sniper": {
+                "handlers": ["gotifyHandler"],
+                "level": "INFO"
+            }
+        }
+    },
     "auth_info": {
         "access_token": "",
         "encrypted_username": "",

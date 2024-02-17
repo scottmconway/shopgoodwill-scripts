@@ -1,0 +1,18 @@
+[tool.isort]
+profile = "black"
+force_to_top = [ "logging" ]
+balanced_wrapping = true
+
+[tool.black]
+line-length = 88
+
+[tool.pycln]
+all = true
+
+[tool.refurb]
+python_version = "3.11"
+quiet = true
+ignore = [ "FURB184" ]
+
+[tool.pylint.format]
+max-line-length = "88"
