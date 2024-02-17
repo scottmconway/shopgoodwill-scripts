@@ -1,3 +1,10 @@
-__pycache__
 config.json
 seen_listings.json
+
+__pycache__
+.DS_Store
+*.pyc
+*.log
+*.egg-info
+.venv
+venv

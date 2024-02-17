@@ -5,6 +5,10 @@ A collection of scripts for programmatically interacting with [ShopGoodwill](htt
 * python3
 * see requirements.txt
 
+```console
+$ pip install -r requirements.txt
+```
+
 ## Configuration Setup
 See `config.json.example` for an example configuration file.
 
@@ -148,3 +152,7 @@ This is a simple script to automate favoriting and making a note to have `bid_sn
 |N/A|`item_id`|`int`|The item ID for which to schedule a bid|
 |N/A|`bid_amount`|`float`|The max bid amount to submit|
 |N/A|`--config`|`str`|Path to config file - defaults to ./config.json|
+
+## See Also
+
+* [Reverse Engineering ShopGoodwill for Fun and Profit](https://conway.scot/shopgoodwill-reversing/)
