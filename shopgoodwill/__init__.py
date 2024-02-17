@@ -88,7 +88,7 @@ class Shopgoodwill:
         if access_token := os.getenv(
             "SHOPGOODWILL_ACCESS_TOKEN", auth_info.get("access_token")
         ):
-            LOG.warning("Attempting auth with access_token")
+            LOG.info("Attempting auth with access_token")
             if self.access_token_is_valid(access_token):
                 self.session.headers["Authorization"] = f"Bearer {access_token}"
                 return True
