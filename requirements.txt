@@ -1,3 +1,4 @@
+coloredlogs
 gotify-handler
 parsedatetime
 pycryptodomex
