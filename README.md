@@ -12,6 +12,20 @@ $ pip install -r requirements.txt
 ## Configuration Setup
 See `config.json.example` for an example configuration file.
 
+### Authentication via Environment Variables
+
+Environment variables can be used to provide the authentication credentials instead of using
+config.json. This enables use of container environments such as Docker to spin up the scripts
+while keeping the credentials more secure.
+
+The following env vars are supported:
+
+```console
+SHOPGOODWILL_ACCESS_TOKEN
+SHOPGOODWILL_USERNAME
+SHOPGOODWILL_PASSWORD
+```
+
 ### `auth_info`
 This section is only needed if you want to use functionality requiring a ShopGoodwill account.
 
