@@ -67,9 +67,9 @@ class Shopgoodwill:
             # check if auth token exists, and if it works
             access_token = auth_info.get("access_token", None)
             if access_token and self.access_token_is_valid(access_token):
-                self.shopgoodwill_session.headers[
-                    "Authorization"
-                ] = f"Bearer {access_token}"
+                self.shopgoodwill_session.headers["Authorization"] = (
+                    f"Bearer {access_token}"
+                )
 
             else:
                 if (
@@ -213,9 +213,9 @@ class Shopgoodwill:
         if res_json["message"] == Shopgoodwill.INVALID_AUTH_MESSAGE:
             raise Exception("Invalid credentials")
 
-        self.shopgoodwill_session.headers[
-            "Authorization"
-        ] = f"Bearer {res_json['accessToken']}"
+        self.shopgoodwill_session.headers["Authorization"] = (
+            f"Bearer {res_json['accessToken']}"
+        )
         # TODO deal with refresh token
 
         return True

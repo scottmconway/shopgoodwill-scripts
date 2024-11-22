@@ -135,12 +135,12 @@ class BidSniper:
             self.bid_shopgoodwill_client = self.shopgoodwill_client
 
         # modify the hooks for our shopgoodwill sessions
-        self.shopgoodwill_client.shopgoodwill_session.hooks[
-            "response"
-        ] = self.outage_check_hook
-        self.bid_shopgoodwill_client.shopgoodwill_session.hooks[
-            "response"
-        ] = self.outage_check_hook
+        self.shopgoodwill_client.shopgoodwill_session.hooks["response"] = (
+            self.outage_check_hook
+        )
+        self.bid_shopgoodwill_client.shopgoodwill_session.hooks["response"] = (
+            self.outage_check_hook
+        )
 
         # custom time alerting setup
         self.alert_time_deltas = list()
@@ -320,34 +320,27 @@ class BidSniper:
             self.logger.error(f"ValueError casting max_bid value '{max_bid}' as float")
             return None
 
-        # we need the sellerId before placing a bid,
-        # which is _only_ available on the item page
-        try:
-            item_info = self.shopgoodwill_client.get_item_info(item_id)
+        # if we want to use the friend_list feature,
+        # we must get the highest bidder before placing a bid
+        if self.config.get("friend_list", list()):
 
-        except BaseException as be:
-            self.logger.error(
-                f"{type(be).__name__} getting info for item ID '{item_id} - {be}"
-            )
-            return None
+            # attempt to get item info, but continue to place bid if we can't
+            try:
+                item_info = self.shopgoodwill_client.get_item_info(item_id)
+                # Don't bid if the current highest bidder is on our friend list
+                bid_summary = item_info["bidHistory"].get("bidSummary", list())
+                if bid_summary:
+                    bidder_name = bid_summary[0]["bidderName"]
+                    if bidder_name in self.config.get("friend_list", list()):
+                        self.logger.info(
+                            "Canceling bid due to friendship for item '{favorite['title']}' - current high bidder {bidder_name}"
+                        )
+                        return None
 
-        # Don't try bidding if we can't win
-        if max_bid < item_info["minimumBid"]:
-            # tell the user what happened
-            self.logger.warning(
-                f"Bid amount {max_bid} for item '{item_info['title']}' "
-                f"below minimum bid price {item_info['minimumBid']}"
-            )
-            return None
-
-        # Don't bid if the current highest bidder is on our friend list
-        if item_info["bidHistory"].get("bidSummary", list()):
-            bidder_name = item_info["bidHistory"]["bidSummary"][0]["bidderName"]
-            if bidder_name in self.config.get("friend_list", list()):
-                self.logger.info(
-                    "Canceling bid due to friendship for item '{item_info['title']}' - current high bidder {bidder_name}"
+            except BaseException as be:
+                self.logger.error(
+                    f"{type(be).__name__} getting info for item ID '{item_id} - {be} - continuing"
                 )
-                return None
 
         # Finally place a bid
         if not self.dry_run:
@@ -357,17 +350,17 @@ class BidSniper:
             # Note that the account used is bidding_shopgoodwill_client
             try:
                 self.bid_shopgoodwill_client.place_bid(
-                    item_id, max_bid, item_info["sellerId"], quantity=1
+                    item_id, max_bid, favorite["sellerId"], quantity=1
                 )
             except HTTPError as he:
                 self.logger.error(
-                    f"HTTPError placing bid on '{item_info['title']}' - {he}"
+                    f"HTTPError placing bid on '{favorite['title']}' - {he}"
                 )
                 return None
 
         # only log the message after we've already placed the bid
         self.logger.warning(
-            f"{self.dry_run_msg}Placing bid on '{item_info['title']}' for {max_bid}"
+            f"{self.dry_run_msg}Placing bid on '{favorite['title']}' for {max_bid}"
         )
 
         return None
