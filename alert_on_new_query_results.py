@@ -386,7 +386,9 @@ def main():
                 logger.info("\n".join(formatted_msg_lines))
 
         except BaseException as be:
-            logger.error(f"Exception for query {query_name} - {type(be).__name__} - {be}")
+            logger.error(
+                f"Exception for query {query_name} - {type(be).__name__} - {be}"
+            )
 
     # save new results of seen listings
 
