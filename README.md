@@ -113,7 +113,7 @@ This script executes an "advanced query" as specified by the user, and logs and 
 
 Note - this query has _advanced_ capabilities over that of ShopGoodwill. At this time, it will further filter results as according to the `searchText`'s use of quotation marks.
 
-eg. the `searchText` string `"foo bar"` will _not_ match with a SGW listing of the title "foo baz bar", whereas it _would_ match in the web application. Note that the search operation is the same, but results are filtered to further enforce the will of the user.
+eg. the `searchText` string `"foo bar"` will _not_ match with a SGW listing of the title "foo baz bar", whereas it _would_ match in the web application. Note that the search operation is the same, but results are filtered to further enforce the will of the user. As of 2025-03, the use of quotation marks anywhere in an advanced query request will elicit a 403 response. The built-in `get_query_results` method removes quotation marks from the `searchText` field such that quotations can be used for the above capabilities, while avoiding 403 responses from ShopGoodwill.
 
 Further improvements to come!
 
