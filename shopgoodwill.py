@@ -2,6 +2,7 @@ import base64
 import datetime
 import re
 import urllib.parse
+from copy import deepcopy
 from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
@@ -67,9 +68,9 @@ class Shopgoodwill:
             # check if auth token exists, and if it works
             access_token = auth_info.get("access_token", None)
             if access_token and self.access_token_is_valid(access_token):
-                self.shopgoodwill_session.headers[
-                    "Authorization"
-                ] = f"Bearer {access_token}"
+                self.shopgoodwill_session.headers["Authorization"] = (
+                    f"Bearer {access_token}"
+                )
 
             else:
                 if (
@@ -213,9 +214,9 @@ class Shopgoodwill:
         if res_json["message"] == Shopgoodwill.INVALID_AUTH_MESSAGE:
             raise Exception("Invalid credentials")
 
-        self.shopgoodwill_session.headers[
-            "Authorization"
-        ] = f"Bearer {res_json['accessToken']}"
+        self.shopgoodwill_session.headers["Authorization"] = (
+            f"Bearer {res_json['accessToken']}"
+        )
         # TODO deal with refresh token
 
         return True
@@ -400,13 +401,17 @@ class Shopgoodwill:
         :rtype: List[Dict]
         """
 
-        query_json["page"] = 1
-        query_json["pageSize"] = page_size
+        tmp_query_json = deepcopy(query_json)
+
+        tmp_query_json["page"] = 1
+        tmp_query_json["pageSize"] = page_size
         total_listings = list()
+
+        tmp_query_json["searchText"] = tmp_query_json["searchText"].replace('"', "")
 
         while True:
             query_res = self.shopgoodwill_session.post(
-                Shopgoodwill.API_ROOT + "/Search/ItemListing", json=query_json
+                Shopgoodwill.API_ROOT + "/Search/ItemListing", json=tmp_query_json
             )
             page_listings = query_res.json()["searchResults"]["items"]
 
@@ -420,7 +425,7 @@ class Shopgoodwill:
                 return total_listings
 
             else:
-                query_json["page"] += 1
+                tmp_query_json["page"] += 1
                 total_listings += page_listings
 
                 # break if we've seen all that we expect to see

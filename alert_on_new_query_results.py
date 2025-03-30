@@ -75,6 +75,8 @@ SAVED_QUERY_DEFAULTS = {
     "catIds": "",
 }
 
+QUOTE_REGEX = re.compile(r"[\'\"].+?[\'\"]")
+
 
 def set_query_defaults(saved_query: Dict) -> Dict:
     """
@@ -158,9 +160,8 @@ def filter_listings(
 
     # TODO note that quotes can start or end with ' or " (or a mix therein!)
     # There's probably a better way to do this, but I am not privy to it
-    quote_regex = re.compile(r"[\'\"].+?[\'\"]")
     search_string = query_json["searchText"].lower()
-    quotes = quote_regex.findall(search_string)
+    quotes = QUOTE_REGEX.findall(search_string)
 
     # get time filter
     time_remaining = filters.get(query_name, dict()).get(
@@ -333,55 +334,61 @@ def main():
 
     for query_name, query_json in queries_to_run.items():
         query_json = set_query_defaults(query_json)  # expand query before submitting it
-        query_res = sgw.get_query_results(query_json)
-        total_listings = filter_listings(query_json, query_res, query_name, filters)
+        try:
+            query_res = sgw.get_query_results(query_json)
+            total_listings = filter_listings(query_json, query_res, query_name, filters)
 
-        alert_queue = list()
+            alert_queue = list()
 
-        for listing in total_listings:
-            item_id = str(listing["itemId"])
+            for listing in total_listings:
+                item_id = str(listing["itemId"])
 
-            # skip seen listings
-            if item_id in seen_listings:
-                continue
+                # skip seen listings
+                if item_id in seen_listings:
+                    continue
 
-            relevant_attrs = dict()
-            for key in RELEVANT_LISTING_KEYS:
-                relevant_attrs[key] = str(listing[key])
-                relevant_attrs["url"] = f"https://shopgoodwill.com/item/{item_id}"
+                relevant_attrs = dict()
+                for key in RELEVANT_LISTING_KEYS:
+                    relevant_attrs[key] = str(listing[key])
+                    relevant_attrs["url"] = f"https://shopgoodwill.com/item/{item_id}"
 
-            seen_listings[item_id] = sgw.convert_timestamp_to_datetime(
-                listing["endTime"]
-            ).isoformat()
-            alert_queue.append(relevant_attrs)
+                seen_listings[item_id] = sgw.convert_timestamp_to_datetime(
+                    listing["endTime"]
+                ).isoformat()
+                alert_queue.append(relevant_attrs)
 
-        if alert_queue:
-            formatted_msg_lines = [
-                f'{len(alert_queue)} new results for shopgoodwill query "{query_name}"',
-                "",
-            ]
-            for alert in alert_queue:
-                if args.markdown:
-                    alert_lines = [
-                        f"[{alert['title']}]({alert['url']}):",
-                        "",
-                        alert["minimumBid"],
-                        "",
-                        alert["endTime"],
-                        "",
-                    ]
+            if alert_queue:
+                formatted_msg_lines = [
+                    f'{len(alert_queue)} new results for shopgoodwill query "{query_name}"',
+                    "",
+                ]
+                for alert in alert_queue:
+                    if args.markdown:
+                        alert_lines = [
+                            f"[{alert['title']}]({alert['url']}):",
+                            "",
+                            alert["minimumBid"],
+                            "",
+                            alert["endTime"],
+                            "",
+                        ]
 
-                else:
-                    alert_lines = [
-                        alert["title"] + ":",
-                        alert["minimumBid"],
-                        alert["endTime"],
-                        alert["url"],
-                        "",
-                    ]
-                formatted_msg_lines.extend(alert_lines)
+                    else:
+                        alert_lines = [
+                            alert["title"] + ":",
+                            alert["minimumBid"],
+                            alert["endTime"],
+                            alert["url"],
+                            "",
+                        ]
+                    formatted_msg_lines.extend(alert_lines)
 
-            logger.info("\n".join(formatted_msg_lines))
+                logger.info("\n".join(formatted_msg_lines))
+
+        except BaseException as be:
+            logger.error(
+                f"Exception for query {query_name} - {type(be).__name__} - {be}"
+            )
 
     # save new results of seen listings
 
