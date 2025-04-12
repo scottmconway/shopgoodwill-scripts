@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import requests
 from Cryptodome.Cipher import AES
 from Cryptodome.Util.Padding import pad
+from requests.cookies import RequestsCookieJar
 from requests.exceptions import HTTPError
 from requests.models import PreparedRequest, Response
 
@@ -17,6 +18,16 @@ from requests.models import PreparedRequest, Response
 _SHIPPING_COST_PATTERN = re.compile(
     r"Shipping: <span id='shipping-span'>\$(\d+\.\d+) \(.*\)<\/span>"
 )
+_SGW_BUYERAPI_DOMAIN = "buyerapi.shopgoodwill.com"
+
+
+class IgnoreBuyerApiCookieJar(RequestsCookieJar):
+    def set_cookie(self, cookie, *args, **kwargs):
+        # do not set cookies from buyerapi
+        if cookie.domain == _SGW_BUYERAPI_DOMAIN:
+            return
+
+        super().set_cookie(cookie, *args, **kwargs)
 
 
 class Shopgoodwill:
@@ -56,6 +67,7 @@ class Shopgoodwill:
 
     def __init__(self, auth_info: Optional[Dict] = None):
         self.shopgoodwill_session = requests.Session()
+        self.shopgoodwill_session.cookies = IgnoreBuyerApiCookieJar()
 
         # SGW doesn't take kindly to the default requests user-agent
         self.shopgoodwill_session.headers = {
