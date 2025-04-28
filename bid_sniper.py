@@ -398,11 +398,19 @@ class BidSniper:
                 if item_id in self.scheduled_tasks:
                     continue
 
+                # SGW has been including microseconds inconsistently,
+                # and one is liable to see '2025-04-29T23:00:17.45' in
+                # the same response as '2025-05-01T22:09:00'
+                end_time = favorite_info["endTime"]
+                date_format = "%Y-%m-%dT%H:%M:%S"
+                if '.' in end_time:
+                    date_format += ".%f"
+
                 # so close but yet so far away from ISO-8601
                 # SGW simply trims the "PDT" (or PST?) off of the timestamps
                 # TODO validate that the site only uses a single timezone!
                 end_time = (
-                    datetime.datetime.fromisoformat(favorite_info["endTime"])
+                    datetime.datetime.strptime(end_time, date_format)
                     .replace(tzinfo=ZoneInfo("US/Pacific"))
                     .astimezone(ZoneInfo("Etc/UTC"))
                 )
