@@ -92,6 +92,8 @@ class BidSniper:
         # if set, the default note to assign favorites that don't have a note
         self.default_note = self.config["bid_sniper"].get("favorite_default_note", None)
 
+        self.date_format = "%Y-%m-%dT%H:%M:%S"
+
         # logging setup
         logging_conf = config.get("logging", dict())
         self.logger = logging.getLogger("shopgoodwill_bid_sniper")
@@ -402,8 +404,8 @@ class BidSniper:
                 # and one is liable to see '2025-04-29T23:00:17.45' in
                 # the same response as '2025-05-01T22:09:00'
                 end_time = favorite_info["endTime"]
-                date_format = "%Y-%m-%dT%H:%M:%S"
-                if '.' in end_time:
+                date_format = self.date_format
+                if "." in end_time:
                     date_format += ".%f"
 
                 # so close but yet so far away from ISO-8601
