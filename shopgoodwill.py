@@ -124,7 +124,7 @@ class Shopgoodwill:
 
         return (
             datetime.datetime.fromisoformat(sgw_timestamp)
-            .replace(tzinfo=ZoneInfo("US/Pacific"))
+            .replace(tzinfo=ZoneInfo("America/Los_Angeles"))
             .astimezone(ZoneInfo("Etc/UTC"))
         )
 

@@ -174,7 +174,7 @@ def filter_listings(
         if time_remaining:
             end_time = (
                 datetime.datetime.fromisoformat(listing["endTime"])
-                .replace(tzinfo=ZoneInfo("US/Pacific"))
+                .replace(tzinfo=ZoneInfo("America/Los_Angeles"))
                 .astimezone(ZoneInfo("Etc/UTC"))
             )
             now = datetime.datetime.now().astimezone(ZoneInfo("Etc/UTC"))

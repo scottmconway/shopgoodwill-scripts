@@ -413,7 +413,7 @@ class BidSniper:
                 # TODO validate that the site only uses a single timezone!
                 end_time = (
                     datetime.datetime.strptime(end_time, date_format)
-                    .replace(tzinfo=ZoneInfo("US/Pacific"))
+                    .replace(tzinfo=ZoneInfo("America/Los_Angeles"))
                     .astimezone(ZoneInfo("Etc/UTC"))
                 )
 
